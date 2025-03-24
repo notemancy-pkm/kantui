@@ -2,6 +2,7 @@
 pub struct Task {
     pub title: String,
     pub description: Option<String>,
+    pub priority: Option<u8>,
 }
 
 // Define a structure for a column
@@ -48,10 +49,12 @@ impl App {
                     Task {
                         title: "Implement UI".to_string(),
                         description: None,
+                        priority: Some(5),
                     },
                     Task {
                         title: "Add task functionality".to_string(),
                         description: None,
+                        priority: Some(5),
                     },
                 ],
                 selected_task: Some(0), // Select the first task by default
@@ -236,6 +239,7 @@ impl App {
             let new_task = Task {
                 title: title.to_string(),
                 description: None,
+                priority: Some(5),
             };
 
             column.tasks.push(new_task);

@@ -124,20 +124,20 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
             .iter()
             .enumerate()
             .flat_map(|(i, task)| {
-                let formatted_task = format_task_with_wrapping(&task.title, column_area.width);
-                let style = if column_idx == app.active_column && column.selected_task == Some(i) {
-                    // Only highlight if this is the active column AND this task is selected
+                let formatted_task = format_task_with_wrapping(task, column_area.width);
+                let style = if column.selected_task == Some(i) {
                     Style::default()
                         .fg(Color::White)
-                        .bg(Color::Rgb(82, 82, 82)) // #525252 for selection
+                        .bg(Color::Blue)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().bg(Color::Rgb(38, 38, 38)) // #262626 for tasks
+                    Style::default().bg(Color::Rgb(38, 38, 38))
                 };
                 let task_item = ListItem::new(formatted_task).style(style);
                 vec![task_item, ListItem::new("")]
             })
             .collect();
+
         let tasks_list = List::new(tasks).block(Block::default());
         f.render_widget(tasks_list, column_layout[2]);
     }

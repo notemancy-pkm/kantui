@@ -65,7 +65,6 @@ impl App {
         }
     }
 
-    /// Convert frontend App model to backend Board model
     fn to_backend_board(&self) -> crud::Board {
         let mut board = crud::Board::new(
             &self.title,
@@ -78,13 +77,16 @@ impl App {
             board.add_column(&column.title);
 
             for task in &column.tasks {
+                // Use the priority value if available, otherwise use default values
+                let priority_impact = task.priority.unwrap_or(5);
+
                 let backend_task = crud::Task {
                     id: task_to_id(task),
                     title: task.title.clone(),
                     priority: Some(crud::Priority {
-                        impact: 5, // Default values
-                        urgency: 5,
-                        effort: 3,
+                        impact: priority_impact, // Set impact directly from the task priority
+                        urgency: 5,              // Default urgency
+                        effort: 3,               // Default effort
                     }),
                     tags: Vec::new(),
                     created: Some(Local::now().format("%Y-%m-%d").to_string()),
@@ -99,9 +101,6 @@ impl App {
 
     /// Update frontend App from backend Board
     fn update_from_backend_board(&mut self, board: crud::Board) {
-        // Update board title
-        self.title = board.name.clone();
-
         // Store original active column name to restore selection
         let active_column_name = self
             .columns
@@ -121,9 +120,17 @@ impl App {
 
             // Add tasks to this column
             for backend_task in &backend_column.tasks {
+                // Extract priority from the backend task
+                let priority = if let Some(ref prio) = backend_task.priority {
+                    Some(prio.impact) // Use impact as the frontend priority value
+                } else {
+                    None
+                };
+
                 let task = Task {
                     title: backend_task.title.clone(),
                     description: None,
+                    priority,
                 };
 
                 column.tasks.push(task);
