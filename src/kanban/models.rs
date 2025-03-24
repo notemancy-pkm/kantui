@@ -8,7 +8,7 @@ pub struct Task {
 pub struct Column {
     pub title: String,
     pub tasks: Vec<Task>,
-    pub selected_task: Option<usize>,
+    pub selected_task: Option<usize>, // Will only matter for the active column
 }
 
 // Define input modes
@@ -240,7 +240,7 @@ impl App {
 
             column.tasks.push(new_task);
 
-            // Select the newly added task
+            // Select the newly added task in the active column
             column.selected_task = Some(column.tasks.len() - 1);
 
             // Save changes to file
@@ -291,12 +291,16 @@ impl App {
 
     pub fn select_prev_column(&mut self) {
         if self.active_column > 0 {
+            // Clear selection in the current column
+            // (visually it will still appear but when we render, we only highlight tasks in active column)
             self.active_column -= 1;
         }
     }
 
     pub fn select_next_column(&mut self) {
         if self.active_column < self.columns.len().saturating_sub(1) {
+            // Clear selection in the current column
+            // (visually it will still appear but when we render, we only highlight tasks in active column)
             self.active_column += 1;
         }
     }

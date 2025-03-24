@@ -6,9 +6,9 @@ use ratatui::{
 /// Formats task text with wrapping given a maximum width.
 /// This function returns a `Text` object that can be rendered in the UI.
 pub fn format_task_with_wrapping(task_text: &str, max_width: u16) -> Text<'static> {
-    let bullet = " ✦ ";
-    let indent = "   ";
-    let horizontal_padding: usize = 2;
+    let bullet = "✦ ";
+    let indent = "  ";
+    let horizontal_padding: usize = 1;
     let bullet_len = bullet.chars().count();
     let effective_width = max_width as usize - (horizontal_padding * 2);
     let max_chars_first_line = effective_width.saturating_sub(bullet_len);

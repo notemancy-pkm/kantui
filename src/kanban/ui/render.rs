@@ -37,7 +37,7 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
         .block(Block::default());
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
+        .constraints([Constraint::Length(2), Constraint::Min(0)].as_ref())
         .split(size);
     f.render_widget(title, chunks[0]);
 
@@ -119,7 +119,8 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
             .enumerate()
             .flat_map(|(i, task)| {
                 let formatted_task = format_task_with_wrapping(&task.title, column_area.width);
-                let style = if column.selected_task == Some(i) {
+                let style = if column_idx == app.active_column && column.selected_task == Some(i) {
+                    // Only highlight if this is the active column AND this task is selected
                     Style::default()
                         .fg(Color::White)
                         .bg(Color::Blue)
