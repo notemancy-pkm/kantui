@@ -19,23 +19,33 @@ fn format_task_with_wrapping(task_text: &str, max_width: u16) -> Text<'static> {
     // Each column is exactly max_width characters wide
     let bullet = " ✦ ";
     let indent = "   "; // Indent for wrapped lines, aligns with text after bullet
+    let horizontal_padding: usize = 2; // Padding on each side (as usize)
     let bullet_len = bullet.chars().count();
-    let max_chars_first_line = max_width as usize - bullet_len;
-    let max_chars_other_lines = max_width as usize - indent.len();
+    let effective_width = max_width as usize - (horizontal_padding * 2);
+    let max_chars_first_line = effective_width.saturating_sub(bullet_len);
+    let max_chars_other_lines = effective_width.saturating_sub(indent.len());
 
-    // let task_text_owned = task_text.to_string(); // Create owned copy
     let mut lines = Vec::new();
 
-    // Handle first line with bullet
+    // Add initial padding line before first line
+    lines.push(Line::from(vec![Span::raw("")]));
+
+    // Create first line with horizontal padding
     let first_line_text = if task_text.len() > max_chars_first_line {
         task_text[..max_chars_first_line].to_string()
     } else {
         task_text.to_string()
     };
 
+    // Calculate the padding for the first line
+    let first_line_padding = effective_width.saturating_sub(first_line_text.len() + bullet_len);
+
     lines.push(Line::from(vec![
+        Span::raw(" ".repeat(horizontal_padding)),
         Span::styled(bullet, Style::default().fg(Color::Yellow)),
-        Span::raw(first_line_text),
+        Span::raw(first_line_text.clone()), // Clone here to avoid ownership issues
+        Span::raw(" ".repeat(first_line_padding)),
+        Span::raw(" ".repeat(horizontal_padding)),
     ]));
 
     // Handle additional lines if needed
@@ -47,11 +57,23 @@ fn format_task_with_wrapping(task_text: &str, max_width: u16) -> Text<'static> {
             let end_pos = std::cmp::min(position + max_chars_other_lines, remaining_text.len());
             let line_text = remaining_text[position..end_pos].to_string();
 
-            lines.push(Line::from(vec![Span::raw(indent), Span::raw(line_text)]));
+            // Calculate the padding for this wrapped line
+            let line_padding = effective_width.saturating_sub(line_text.len() + indent.len());
+
+            lines.push(Line::from(vec![
+                Span::raw(" ".repeat(horizontal_padding)),
+                Span::raw(indent),
+                Span::raw(line_text.clone()), // Clone here to avoid ownership issues
+                Span::raw(" ".repeat(line_padding)),
+                Span::raw(" ".repeat(horizontal_padding)),
+            ]));
 
             position = end_pos;
         }
     }
+
+    // Add final padding line after last line
+    lines.push(Line::from(vec![Span::raw("")]));
 
     Text::from(lines)
 }
@@ -165,45 +187,39 @@ pub fn ui(f: &mut Frame, app: &App) {
         f.render_widget(title_text, column_layout[0]);
         f.render_widget(horizontal_line, column_layout[1]);
 
+        // Create ListItems with simple padding (no borders)
         let tasks: Vec<ListItem> = column
             .tasks
             .iter()
             .enumerate()
             .flat_map(|(i, task)| {
-                // let task_style = if column.selected_task == Some(i) {
-                //     Style::default()
-                //         .fg(Color::White)
-                //         .bg(Color::Blue)
-                //         .add_modifier(Modifier::BOLD)
-                // } else {
-                //     Style::default().bg(Color::Rgb(0, 0, 0)) // Black background (#000000)
-                // };
-
-                // Add a sparkle bullet and format the task text with wrapping - pass full width
+                // Add a sparkle bullet and format the task text with wrapping
+                // The formatting function now handles top, bottom, left and right padding
                 let formatted_task = format_task_with_wrapping(&task.title, column_area.width);
 
-                // Create the task item with black background and no border
-                let task_item =
-                    ListItem::new(formatted_task).style(if column.selected_task == Some(i) {
-                        Style::default()
-                            .fg(Color::White)
-                            .bg(Color::Blue)
-                            .add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().bg(Color::Rgb(38, 38, 38)) // Black background (#000000)
-                    });
-
-                // Add a blank line item after each task (except the last one)
-                if i < column.tasks.len() - 1 {
-                    vec![task_item, ListItem::new("")]
+                // Create the task item with appropriate styling
+                let style = if column.selected_task == Some(i) {
+                    Style::default()
+                        .fg(Color::White)
+                        .bg(Color::Blue)
+                        .add_modifier(Modifier::BOLD)
                 } else {
-                    vec![task_item]
-                }
+                    Style::default().bg(Color::Rgb(38, 38, 38))
+                };
+
+                // Create a task item with the formatted task
+                let task_item = ListItem::new(formatted_task).style(style);
+
+                // Add extra vertical spacing between tasks
+                vec![
+                    task_item,
+                    ListItem::new(""), // Add an empty line after each task for spacing
+                ]
             })
             .collect();
 
-        // Change the List widget to use a block with no borders
-        let tasks_list = List::new(tasks).block(Block::default().borders(Borders::NONE));
+        // Create the tasks list
+        let tasks_list = List::new(tasks).block(Block::default());
 
         f.render_widget(tasks_list, column_layout[2]);
     }
