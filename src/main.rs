@@ -6,10 +6,10 @@ use ratatui::crossterm::{
 use ratatui::{
     Terminal,
     backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout, Position},
     style::{Color, Modifier, Style},
     text::Span,
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
 use std::io;
 
@@ -25,12 +25,20 @@ struct Column {
     tasks: Vec<Task>,
 }
 
+// Define input modes
+enum InputMode {
+    Normal,
+    AddingColumn,
+}
+
 // Define the application structure
 struct App {
     title: String,
     columns: Vec<Column>,
     active_column: usize,
     scroll_offset: usize,
+    input_mode: InputMode,
+    input_text: String,
 }
 
 impl App {
@@ -52,14 +60,29 @@ impl App {
             }],
             active_column: 0,
             scroll_offset: 0,
+            input_mode: InputMode::Normal,
+            input_text: String::new(),
         }
     }
 
     fn add_column(&mut self, title: &str) {
+        // Ensure the column name is unique
+        let mut unique_name = title.to_string();
+        let mut counter = 1;
+
+        while self.columns.iter().any(|col| col.title == unique_name) {
+            unique_name = format!("{} ({})", title, counter);
+            counter += 1;
+        }
+
         self.columns.push(Column {
-            title: title.to_string(),
+            title: unique_name,
             tasks: Vec::new(),
         });
+
+        // Exit input mode
+        self.input_mode = InputMode::Normal;
+        self.input_text.clear();
     }
 
     fn scroll_left(&mut self) {
@@ -87,7 +110,7 @@ impl App {
     fn select_next_column(&mut self) {
         if self.active_column < self.columns.len().saturating_sub(1) {
             self.active_column += 1;
-            // Adjust scroll if needed - reduced columns shown due to margins
+            // Adjust scroll if needed
             if self.active_column >= self.scroll_offset + 2 {
                 // Now showing 2 columns at a time with margins
                 self.scroll_offset = self.active_column.saturating_sub(1);
@@ -129,20 +152,43 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mut app: App) 
         terminal.draw(|f| ui(f, &app))?;
 
         if let Event::Key(key) = event::read()? {
-            match key.code {
-                KeyCode::Char('q') => {
-                    return Ok(());
-                }
-                KeyCode::Char('l') if key.modifiers == KeyModifiers::CONTROL => {
-                    app.add_column("New Column");
-                }
-                KeyCode::Char('h') => {
-                    app.select_prev_column();
-                }
-                KeyCode::Char('l') => {
-                    app.select_next_column();
-                }
-                _ => {}
+            match app.input_mode {
+                InputMode::Normal => match key.code {
+                    KeyCode::Char('q') => {
+                        return Ok(());
+                    }
+                    KeyCode::Char('l') if key.modifiers == KeyModifiers::CONTROL => {
+                        app.input_mode = InputMode::AddingColumn;
+                    }
+                    KeyCode::Char('h') => {
+                        app.select_prev_column();
+                    }
+                    KeyCode::Char('l') => {
+                        app.select_next_column();
+                    }
+                    _ => {}
+                },
+                InputMode::AddingColumn => match key.code {
+                    KeyCode::Enter => {
+                        let column_name = if app.input_text.is_empty() {
+                            "New Column".to_string()
+                        } else {
+                            app.input_text.clone()
+                        };
+                        app.add_column(&column_name);
+                    }
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                        app.input_text.clear();
+                    }
+                    KeyCode::Char(c) => {
+                        app.input_text.push(c);
+                    }
+                    KeyCode::Backspace => {
+                        app.input_text.pop();
+                    }
+                    _ => {}
+                },
             }
         }
     }
@@ -207,7 +253,8 @@ fn ui(f: &mut ratatui::Frame, app: &App) {
 
         // Calculate the actual column area (skip margin constraints)
         let column_area = columns_layout[layout_idx * 3 + 1]; // +1 to skip left margin
-        let border_style = if column_idx == app.active_column {
+
+        let style = if column_idx == app.active_column {
             Style::default().fg(Color::Yellow)
         } else {
             Style::default()
@@ -223,11 +270,7 @@ fn ui(f: &mut ratatui::Frame, app: &App) {
         // Create a custom block with just a top border for the column title
         let title_text = Paragraph::new(title_with_index)
             .alignment(Alignment::Center)
-            .style(if column_idx == app.active_column {
-                Style::default().fg(Color::Yellow)
-            } else {
-                Style::default()
-            });
+            .style(style);
 
         // Create a blue horizontal line
         let horizontal_line = Block::default()
@@ -260,7 +303,13 @@ fn ui(f: &mut ratatui::Frame, app: &App) {
     }
 
     // Add navigation help at the bottom
-    let help_text = "Use 'h'/'l' to navigate columns | Ctrl+L to add a column | 'q' to quit";
+    let help_text = match app.input_mode {
+        InputMode::Normal => {
+            "Use 'h'/'l' to navigate columns | Ctrl+L to add a column | 'q' to quit"
+        }
+        InputMode::AddingColumn => "Enter column name | Enter to confirm | Esc to cancel",
+    };
+
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::DarkGray))
         .alignment(Alignment::Center);
@@ -271,4 +320,43 @@ fn ui(f: &mut ratatui::Frame, app: &App) {
         .split(size);
 
     f.render_widget(help, help_layout[1]);
+
+    // Draw popup overlay for adding a column
+    if let InputMode::AddingColumn = app.input_mode {
+        // Create a centered popup
+        let popup_width = 50;
+        let popup_height = 3;
+        let popup_area = ratatui::layout::Rect::new(
+            (size.width.saturating_sub(popup_width)) / 2,
+            (size.height.saturating_sub(popup_height)) / 2,
+            popup_width.min(size.width),
+            popup_height.min(size.height),
+        );
+
+        // Create a clear background for the popup
+        f.render_widget(Clear, popup_area);
+
+        // Create the popup block
+        let popup_block = Block::default()
+            .title("New Column")
+            .borders(Borders::ALL)
+            .style(Style::default());
+
+        f.render_widget(&popup_block, popup_area);
+
+        // Create the input field
+        let input_area = popup_block.inner(popup_area);
+
+        let input = Paragraph::new(app.input_text.clone())
+            .style(Style::default())
+            .block(Block::default());
+
+        f.render_widget(input, input_area);
+
+        // Set cursor to the end of input
+        f.set_cursor_position(Position {
+            x: input_area.x + app.input_text.len() as u16,
+            y: input_area.y,
+        });
+    }
 }
