@@ -1,0 +1,461 @@
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use ratatui::{
+    Terminal,
+    backend::CrosstermBackend,
+    layout::{Alignment, Constraint, Direction, Layout, Position},
+    style::{Color, Modifier, Style},
+    text::Span,
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+};
+use std::io;
+
+// Define a structure for a task
+pub struct Task {
+    pub title: String,
+    pub description: Option<String>,
+}
+
+// Define a structure for a column
+pub struct Column {
+    pub title: String,
+    pub tasks: Vec<Task>,
+}
+
+// Define input modes
+pub enum InputMode {
+    Normal,
+    AddingColumn,
+    MoveMode,
+}
+
+// Define the application structure
+pub struct App {
+    pub title: String,
+    pub columns: Vec<Column>,
+    pub active_column: usize,
+    pub scroll_offset: usize,
+    pub input_mode: InputMode,
+    pub input_text: String,
+    pub start_index: usize,
+}
+
+impl App {
+    pub fn new(title: &str) -> App {
+        App {
+            title: title.to_string(),
+            columns: vec![Column {
+                title: "To Do".to_string(),
+                tasks: vec![
+                    Task {
+                        title: "Implement UI".to_string(),
+                        description: None,
+                    },
+                    Task {
+                        title: "Add task functionality".to_string(),
+                        description: None,
+                    },
+                ],
+            }],
+            active_column: 0,
+            start_index: 0,
+            scroll_offset: 0,
+            input_mode: InputMode::Normal,
+            input_text: String::new(),
+        }
+    }
+
+    pub fn add_column(&mut self, title: &str) {
+        // Ensure the column name is unique
+        let mut unique_name = title.to_string();
+        let mut counter = 1;
+
+        while self.columns.iter().any(|col| col.title == unique_name) {
+            unique_name = format!("{} ({})", title, counter);
+            counter += 1;
+        }
+
+        self.columns.push(Column {
+            title: unique_name,
+            tasks: Vec::new(),
+        });
+
+        // Exit input mode
+        self.input_mode = InputMode::Normal;
+        self.input_text.clear();
+    }
+
+    pub fn jump_to_column(&mut self, index: usize) {
+        // Only allow jumping to columns that exist
+        // Limit to 0-9 (columns 1-10, with 0 mapped to the first column)
+        let target = if index == 0 { 0 } else { index - 1 };
+
+        if target < self.columns.len() {
+            self.active_column = target;
+            // Exit move mode after jumping
+            self.input_mode = InputMode::Normal;
+        }
+    }
+
+    pub fn scroll_left(&mut self) {
+        if self.scroll_offset > 0 {
+            self.scroll_offset -= 1;
+        }
+    }
+
+    pub fn scroll_right(&mut self) {
+        if self.scroll_offset < self.columns.len().saturating_sub(1) {
+            self.scroll_offset += 1;
+        }
+    }
+
+    pub fn select_prev_column(&mut self) {
+        if self.active_column > 0 {
+            self.active_column -= 1;
+        }
+    }
+
+    pub fn select_next_column(&mut self) {
+        if self.active_column < self.columns.len().saturating_sub(1) {
+            self.active_column += 1;
+        }
+    }
+}
+
+pub fn run_app(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    mut app: App,
+) -> io::Result<()> {
+    loop {
+        // Calculate the max visible columns before drawing
+        let backend_size = terminal.size()?;
+        // Subtract space for padding, title, help text, etc.
+        let available_width = backend_size.width;
+        const COLUMN_WIDTH: u16 = 50;
+        const COLUMN_MARGIN: u16 = 2;
+        let column_with_margin = COLUMN_WIDTH + (COLUMN_MARGIN * 2);
+        let max_visible_columns = (available_width / column_with_margin).max(1) as usize;
+
+        // Update scroll_offset based on active_column and max_visible_columns
+        if app.columns.len() <= max_visible_columns {
+            // If all columns fit, show all from the beginning
+            app.scroll_offset = 0;
+        } else if app.active_column >= app.scroll_offset + max_visible_columns {
+            // If active column is beyond current view, adjust scroll
+            app.scroll_offset = app.active_column + 1 - max_visible_columns;
+        } else if app.active_column < app.scroll_offset {
+            // If active column is before current view, adjust scroll
+            app.scroll_offset = app.active_column;
+        }
+        // Otherwise keep current scroll_offset
+
+        terminal.draw(|f| ui(f, &app))?;
+
+        if let Event::Key(key) = event::read()? {
+            match app.input_mode {
+                InputMode::Normal => match key.code {
+                    KeyCode::Char('q') => {
+                        return Ok(());
+                    }
+                    KeyCode::Char('l') if key.modifiers == KeyModifiers::CONTROL => {
+                        app.input_mode = InputMode::AddingColumn;
+                    }
+                    KeyCode::Char('h') => {
+                        app.select_prev_column();
+                    }
+                    KeyCode::Char('k') if key.modifiers == KeyModifiers::CONTROL => {
+                        // Enter move mode with Ctrl+M
+                        app.input_mode = InputMode::MoveMode;
+                    }
+                    KeyCode::Char('l') => {
+                        app.select_next_column();
+                    }
+                    _ => {}
+                },
+                InputMode::AddingColumn => match key.code {
+                    KeyCode::Enter => {
+                        let column_name = if app.input_text.is_empty() {
+                            "New Column".to_string()
+                        } else {
+                            app.input_text.clone()
+                        };
+                        app.add_column(&column_name);
+                    }
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                        app.input_text.clear();
+                    }
+                    KeyCode::Char(c) => {
+                        app.input_text.push(c);
+                    }
+                    KeyCode::Backspace => {
+                        app.input_text.pop();
+                    }
+                    _ => {}
+                },
+                InputMode::MoveMode => match key.code {
+                    KeyCode::Esc => {
+                        // Exit move mode with Escape
+                        app.input_mode = InputMode::Normal;
+                    }
+                    KeyCode::Char(c) if c >= '0' && c <= '9' => {
+                        // Jump to column by number (0-9)
+                        let index = c.to_digit(10).unwrap() as usize;
+                        app.jump_to_column(index);
+                    }
+                    _ => {}
+                },
+            }
+        }
+    }
+}
+
+fn calculate_start_index(app: &App, max_visible_columns: usize) -> usize {
+    if app.columns.len() <= max_visible_columns {
+        // If all columns fit, show all from the beginning
+        0
+    } else if app.active_column >= app.start_index + max_visible_columns {
+        // If active column is beyond current view, adjust scroll
+        app.active_column + 1 - max_visible_columns
+    } else if app.active_column < app.start_index {
+        // If active column is before current view, adjust scroll
+        app.active_column
+    } else {
+        // Otherwise, keep current scroll position
+        app.start_index
+    }
+}
+
+pub fn ui(f: &mut ratatui::Frame, app: &App) {
+    let size = f.area();
+
+    // Create the title
+    let title = Paragraph::new(app.title.clone())
+        .style(Style::default().fg(Color::Cyan))
+        .alignment(Alignment::Center)
+        .block(Block::default());
+
+    // Calculate layout for title and columns area
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
+        .split(size);
+
+    f.render_widget(title, chunks[0]);
+
+    // Define a fixed column width (50 characters)
+    const COLUMN_WIDTH: u16 = 50;
+    // Define margin between columns
+    const COLUMN_MARGIN: u16 = 2;
+
+    // Calculate how many columns we can show at once
+    let available_width = chunks[1].width;
+    let column_with_margin = COLUMN_WIDTH + (COLUMN_MARGIN * 2);
+    let max_visible_columns = (available_width / column_with_margin).max(1) as usize;
+
+    // Determine the starting column index based on the active column
+    let start_idx = if app.columns.len() <= max_visible_columns {
+        // If all columns fit, show all from the beginning
+        0
+    } else if app.active_column >= app.scroll_offset + max_visible_columns {
+        // If active column is beyond current view, adjust scroll
+        app.active_column + 1 - max_visible_columns
+    } else if app.active_column < app.scroll_offset {
+        // If active column is before current view, adjust scroll
+        app.active_column
+    } else {
+        // Otherwise, keep current scroll position
+        app.scroll_offset
+    };
+
+    // Calculate how many columns we can actually show
+    let visible_columns = max_visible_columns.min(app.columns.len() - start_idx);
+
+    // Create constraints for the visible columns with margins
+    let mut column_constraints = Vec::new();
+    for _ in 0..visible_columns {
+        // Left margin
+        column_constraints.push(Constraint::Length(COLUMN_MARGIN));
+        // Column
+        column_constraints.push(Constraint::Length(COLUMN_WIDTH));
+        // Right margin
+        column_constraints.push(Constraint::Length(COLUMN_MARGIN));
+    }
+
+    // If we have space left, add it as an extra constraint
+    if !column_constraints.is_empty()
+        && available_width > column_with_margin * (column_constraints.len() / 3) as u16
+    {
+        column_constraints.push(Constraint::Min(0));
+    }
+
+    let columns_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(column_constraints)
+        .split(chunks[1]);
+
+    // Render visible columns
+    for (layout_idx, column_idx) in (start_idx..app.columns.len())
+        .enumerate()
+        .take(visible_columns)
+    {
+        let column = &app.columns[column_idx];
+
+        // Calculate the actual column area (skip margin constraints)
+        let column_area = columns_layout[layout_idx * 3 + 1]; // +1 to skip left margin
+
+        let style = if column_idx == app.active_column {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default()
+        };
+
+        let title_with_index = format!(
+            "{} ({}/{})",
+            column.title,
+            column_idx + 1,
+            app.columns.len()
+        );
+
+        // Create a custom block with just a top border for the column title
+        let title_text = Paragraph::new(title_with_index)
+            .alignment(Alignment::Center)
+            .style(style);
+
+        // Create a blue horizontal line
+        let horizontal_line = Block::default()
+            .borders(Borders::TOP)
+            .border_style(Style::default().fg(Color::Blue));
+
+        // Layout for title and content within column
+        let column_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1), // Title
+                Constraint::Length(1), // Blue line
+                Constraint::Min(1),    // Content
+            ])
+            .split(column_area);
+
+        f.render_widget(title_text, column_layout[0]);
+        f.render_widget(horizontal_line, column_layout[1]);
+
+        let tasks: Vec<ListItem> = column
+            .tasks
+            .iter()
+            .map(|task| ListItem::new(Span::raw(&task.title)))
+            .collect();
+
+        let tasks_list =
+            List::new(tasks).highlight_style(Style::default().add_modifier(Modifier::BOLD));
+
+        f.render_widget(tasks_list, column_layout[2]);
+    }
+
+    // Add navigation help at the bottom
+    let help_text = match app.input_mode {
+        InputMode::Normal => {
+            "Use 'h'/'l' to navigate columns | Ctrl+L to add a column | Ctrl+M for move mode | 'q' to quit"
+        }
+        InputMode::AddingColumn => "Enter column name | Enter to confirm | Esc to cancel",
+        InputMode::MoveMode => "Press 0-9 to jump to that column | Esc to cancel",
+    };
+
+    let help = Paragraph::new(help_text)
+        .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center);
+
+    let help_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .split(size);
+
+    f.render_widget(help, help_layout[1]);
+
+    // Draw popup overlay for adding a column
+    if let InputMode::AddingColumn = app.input_mode {
+        // Create a centered popup
+        let popup_width = 50;
+        let popup_height = 3;
+        let popup_area = ratatui::layout::Rect::new(
+            (size.width.saturating_sub(popup_width)) / 2,
+            (size.height.saturating_sub(popup_height)) / 2,
+            popup_width.min(size.width),
+            popup_height.min(size.height),
+        );
+
+        // Create a clear background for the popup
+        f.render_widget(Clear, popup_area);
+
+        // Create the popup block
+        let popup_block = Block::default()
+            .title("New Column")
+            .borders(Borders::ALL)
+            .style(Style::default());
+
+        f.render_widget(&popup_block, popup_area);
+
+        // Create the input field
+        let input_area = popup_block.inner(popup_area);
+
+        let input = Paragraph::new(app.input_text.clone())
+            .style(Style::default())
+            .block(Block::default());
+
+        f.render_widget(input, input_area);
+
+        // Set cursor to the end of input
+        f.set_cursor_position(Position {
+            x: input_area.x + app.input_text.len() as u16,
+            y: input_area.y,
+        });
+    }
+
+    if let InputMode::MoveMode = app.input_mode {
+        // Create a small indicator at the bottom of the screen
+        let mode_indicator = Paragraph::new("MOVE MODE")
+            .style(Style::default().fg(Color::Red))
+            .alignment(Alignment::Center);
+
+        let indicator_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(0),
+                Constraint::Length(1), // Help text
+                Constraint::Length(1), // Move mode indicator
+            ])
+            .split(size);
+
+        f.render_widget(mode_indicator, indicator_layout[2]);
+
+        // Optionally, show column numbers
+        // Calculate visible columns (similar to your existing column rendering logic)
+        // Then add a number indicator to each column title
+        for (layout_idx, column_idx) in (start_idx..app.columns.len())
+            .enumerate()
+            .take(visible_columns)
+        {
+            if column_idx < 10 {
+                // Only for columns 0-9
+                let column_area = columns_layout[layout_idx * 3 + 1];
+                let number_indicator = Paragraph::new(format!(
+                    "[{}]",
+                    if column_idx == 0 { 0 } else { column_idx + 1 }
+                ))
+                .style(Style::default().fg(Color::Red))
+                .alignment(Alignment::Center);
+
+                // Render just above the column title
+                let indicator_area = ratatui::layout::Rect::new(
+                    column_area.x,
+                    column_area.y.saturating_sub(1),
+                    column_area.width,
+                    1,
+                );
+
+                if indicator_area.y > 0 {
+                    f.render_widget(number_indicator, indicator_area);
+                }
+            }
+        }
+    }
+}
