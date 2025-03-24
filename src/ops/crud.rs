@@ -16,7 +16,9 @@ impl Priority {
         if self.effort == 0 {
             None
         } else {
-            Some((self.impact as f32 * self.urgency as f32) / self.effort as f32)
+            let base_score = (self.impact as f32 + self.urgency as f32) / self.effort as f32;
+            let normalized_score = (base_score - 0.2) / 19.8;
+            Some(1.0 + 9.0 * normalized_score)
         }
     }
 }
