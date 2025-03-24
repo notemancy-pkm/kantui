@@ -12,8 +12,6 @@ pub fn run_app(
     mut app: App,
 ) -> io::Result<()> {
     let mut last_key: Option<KeyCode> = None;
-    // Track the key combination after space is pressed
-    let mut space_combo: Option<String> = None;
 
     loop {
         terminal.draw(|f| crate::kanban::ui::render::draw_ui(f, &app))?;
@@ -32,13 +30,7 @@ pub fn run_app(
                                 return Ok(());
                             }
                         }
-                        KeyCode::Char(' ') => {
-                            app.space_pressed = true;
-                            space_combo = Some(String::new()); // Initialize empty combo string
-                        }
-                        KeyCode::Char('b') if app.space_pressed => {
-                            app.space_pressed = false;
-                            space_combo = None;
+                        KeyCode::Char('b') => {
                             // Return to normal mode
                             app.input_mode = InputMode::Normal;
                         }
@@ -51,10 +43,7 @@ pub fn run_app(
                                 eprintln!("Error loading board: {}", e);
                             }
                         }
-                        _ => {
-                            app.space_pressed = false;
-                            space_combo = None;
-                        }
+                        _ => {}
                     }
                 }
                 InputMode::AddingBoard => {
@@ -88,151 +77,104 @@ pub fn run_app(
                     }
                 }
                 InputMode::Normal => {
-                    // Only check for double-tap 'd' if space isn't pressed
-                    if !app.space_pressed
-                        && key.modifiers.is_empty()
-                        && key.code == KeyCode::Char('d')
-                    {
-                        if let Some(KeyCode::Char('d')) = last_key {
-                            last_key = None;
-                            app.input_mode = InputMode::ConfirmDeleteColumn;
-                            continue;
-                        } else {
-                            last_key = Some(KeyCode::Char('d'));
-                            continue;
-                        }
-                    } else {
-                        last_key = None;
-                        match key.code {
-                            KeyCode::Char('q') => return Ok(()),
-                            KeyCode::Char(' ') => {
-                                app.space_pressed = true;
-                                space_combo = Some(String::new()); // Initialize empty combo string
-                            }
-                            KeyCode::Char(c) if app.space_pressed => {
-                                // Add character to the combo
-                                if let Some(ref mut combo) = space_combo {
-                                    combo.push(c);
-
-                                    // Check for completed shortcut sequences
-                                    match combo.as_str() {
-                                        // Single-letter shortcuts (keep existing ones)
-                                        "b" => {
-                                            // Toggle board selection
-                                            if app.input_mode == InputMode::BoardSelection {
-                                                // If already in board selection, return to normal mode
-                                                app.input_mode = InputMode::Normal;
-                                            } else {
-                                                // Otherwise scan boards and enter board selection mode
-                                                if let Err(e) = app.scan_available_boards() {
-                                                    eprintln!("Error scanning boards: {}", e);
-                                                }
-                                                app.input_mode = InputMode::BoardSelection;
-                                            }
-                                            // Reset combo state
-                                            app.space_pressed = false;
-                                            space_combo = None;
-                                        }
-                                        // Remove 'j' combo since we'll use gt and gc instead
-                                        "gc" => {
-                                            app.input_mode = InputMode::JumpToColumnMode;
-                                            // Reset combo state
-                                            app.space_pressed = false;
-                                            space_combo = None;
-                                        }
-                                        "gt" => {
-                                            app.input_mode = InputMode::JumpToTaskMode;
-                                            // Reset combo state
-                                            app.space_pressed = false;
-                                            space_combo = None;
-                                        }
-
-                                        // Two-letter shortcuts
-                                        "ac" => {
-                                            app.input_mode = InputMode::AddingColumn;
-                                            // Reset combo state
-                                            app.space_pressed = false;
-                                            space_combo = None;
-                                        }
-                                        "at" => {
-                                            app.input_mode = InputMode::AddingTask;
-                                            // Reset combo state
-                                            app.space_pressed = false;
-                                            space_combo = None;
-                                        }
-                                        "dt" => {
-                                            // Make sure we're deleting a task when there is one
-                                            if let Some(column) = app.columns.get(app.active_column)
-                                            {
-                                                if column.selected_task.is_some() {
-                                                    app.delete_current_task();
-                                                }
-                                            }
-                                            // Reset combo state
-                                            app.space_pressed = false;
-                                            space_combo = None;
-                                        }
-                                        "dc" => {
-                                            // Only proceed to delete column confirmation if we have columns
-                                            if !app.columns.is_empty() {
-                                                app.input_mode = InputMode::ConfirmDeleteColumn;
-                                            }
-                                            // Reset combo state
-                                            app.space_pressed = false;
-                                            space_combo = None;
-                                        }
-                                        _ => {
-                                            // If combo length is 2+ but doesn't match, reset
-                                            if combo.len() >= 2 {
-                                                app.space_pressed = false;
-                                                space_combo = None;
-                                            }
-                                            // Otherwise wait for more input
-                                        }
-                                    }
-                                }
-                            }
-                            KeyCode::Char('g') => {
-                                // Handle 'g' prefix for jump shortcuts
-                                match event::read()? {
-                                    Event::Key(key) => match key.code {
-                                        KeyCode::Char('c') => {
-                                            app.input_mode = InputMode::JumpToColumnMode
-                                        }
-                                        KeyCode::Char('t') => {
-                                            app.input_mode = InputMode::JumpToTaskMode
-                                        }
-                                        _ => {} // Ignore other characters
-                                    },
-                                    _ => {} // Ignore other events
-                                }
-                            }
-                            KeyCode::Char('m') => {
-                                // Only enter column selection mode if there's a task selected in the current column
-                                if let Some(column) = app.columns.get(app.active_column) {
-                                    if column.selected_task.is_some() {
-                                        app.input_mode = InputMode::ColumnSelectionMode;
-                                    }
-                                }
-                            }
-                            KeyCode::Char('h') => app.select_prev_column(),
-                            KeyCode::Char('l') => app.select_next_column(),
-                            KeyCode::Char('j') => app.select_next_task(),
-                            KeyCode::Char('k') => app.select_prev_task(),
-                            // Keep save functionality with Ctrl+S
-                            KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => {
-                                // Explicitly save board to file
-                                if let Err(e) = app.save_board() {
-                                    eprintln!("Error saving board: {}", e);
-                                }
-                            }
-                            _ => {
-                                // For other keys, reset space state
-                                app.space_pressed = false;
-                                space_combo = None;
+                    // Handle double-tap 'd' for deleting columns
+                    // if key.modifiers.is_empty() && key.code == KeyCode::Char('d') {
+                    //     if let Some(KeyCode::Char('d')) = last_key {
+                    //         last_key = None;
+                    //         app.input_mode = InputMode::ConfirmDeleteColumn;
+                    //         continue;
+                    //     } else {
+                    //         last_key = Some(KeyCode::Char('d'));
+                    //         continue;
+                    //     }
+                    // } else {
+                    //     last_key = None;
+                    match key.code {
+                        KeyCode::Char('q') => return Ok(()),
+                        KeyCode::Char('a') => {
+                            // 'a' prefix for add commands
+                            match event::read()? {
+                                Event::Key(key) => match key.code {
+                                    KeyCode::Char('c') => app.input_mode = InputMode::AddingColumn,
+                                    KeyCode::Char('t') => app.input_mode = InputMode::AddingTask,
+                                    _ => {} // Ignore other characters
+                                },
+                                _ => {} // Ignore other events
                             }
                         }
+                        KeyCode::Char('d') => {
+                            // 'd' prefix for delete commands
+                            match event::read()? {
+                                Event::Key(key) => match key.code {
+                                    KeyCode::Char('t') => {
+                                        // Make sure we're deleting a task when there is one
+                                        if let Some(column) = app.columns.get(app.active_column) {
+                                            if column.selected_task.is_some() {
+                                                app.delete_current_task();
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Char('c') => {
+                                        // Only proceed to delete column confirmation if we have columns
+                                        if !app.columns.is_empty() {
+                                            app.input_mode = InputMode::ConfirmDeleteColumn;
+                                        }
+                                    }
+                                    _ => {} // Ignore other characters
+                                },
+                                _ => {} // Ignore other events
+                            }
+                        }
+                        KeyCode::Char('b') => {
+                            // Toggle board selection
+                            if app.input_mode == InputMode::BoardSelection {
+                                // If already in board selection, return to normal mode
+                                app.input_mode = InputMode::Normal;
+                            } else {
+                                // Otherwise scan boards and enter board selection mode
+                                if let Err(e) = app.scan_available_boards() {
+                                    eprintln!("Error scanning boards: {}", e);
+                                }
+                                app.input_mode = InputMode::BoardSelection;
+                            }
+                        }
+                        KeyCode::Char('g') => {
+                            // Handle 'g' prefix for jump shortcuts
+                            match event::read()? {
+                                Event::Key(key) => match key.code {
+                                    KeyCode::Char('c') => {
+                                        app.input_mode = InputMode::JumpToColumnMode
+                                    }
+                                    KeyCode::Char('t') => {
+                                        app.input_mode = InputMode::JumpToTaskMode
+                                    }
+                                    _ => {} // Ignore other characters
+                                },
+                                _ => {} // Ignore other events
+                            }
+                        }
+                        KeyCode::Char('m') => {
+                            // Only enter column selection mode if there's a task selected in the current column
+                            if let Some(column) = app.columns.get(app.active_column) {
+                                if column.selected_task.is_some() {
+                                    app.input_mode = InputMode::ColumnSelectionMode;
+                                }
+                            }
+                        }
+                        KeyCode::Char('h') => app.select_prev_column(),
+                        KeyCode::Char('l') => app.select_next_column(),
+                        KeyCode::Char('j') => app.select_next_task(),
+                        KeyCode::Char('k') => app.select_prev_task(),
+                        // Keep save functionality with Ctrl+S
+                        KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => {
+                            // Explicitly save board to file
+                            if let Err(e) = app.save_board() {
+                                eprintln!("Error saving board: {}", e);
+                            }
+                        }
+                        _ => {}
                     }
+                    // }
                 }
                 InputMode::AddingColumn => match key.code {
                     KeyCode::Enter => {

@@ -41,7 +41,6 @@ pub struct App {
     // Board selection fields
     pub available_boards: Vec<String>,
     pub selected_board_index: Option<usize>,
-    pub space_pressed: bool,
 }
 
 impl App {
@@ -72,7 +71,6 @@ impl App {
             file_path: None,
             available_boards: Vec::new(),
             selected_board_index: Some(0), // Select first board by default
-            space_pressed: false,
         };
 
         // Initialize board selection
