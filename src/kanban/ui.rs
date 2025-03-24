@@ -136,8 +136,8 @@ pub fn ui(f: &mut Frame, app: &App) {
                     Style::default()
                 };
 
-                // Add a circle bullet and some padding
-                let task_text = format!(" ● {}  ", task.title);
+                // Add a sparkle bullet and some padding
+                let task_text = format!(" ✦ {}  ", task.title);
 
                 // Create the task item
                 let task_item = ListItem::new(Span::styled(task_text, task_style))
