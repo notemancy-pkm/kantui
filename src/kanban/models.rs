@@ -11,6 +11,7 @@ pub struct Task {
 pub struct Column {
     pub title: String,
     pub tasks: Vec<Task>,
+    pub selected_task: Option<usize>,
 }
 
 // Define input modes
@@ -47,6 +48,7 @@ impl App {
                         description: None,
                     },
                 ],
+                selected_task: Some(0), // Select the first task by default
             }],
             active_column: 0,
             start_index: 0,
@@ -69,6 +71,7 @@ impl App {
         self.columns.push(Column {
             title: unique_name,
             tasks: Vec::new(),
+            selected_task: None, // No tasks selected in a new empty column
         });
 
         // Exit input mode
@@ -109,6 +112,47 @@ impl App {
     pub fn select_next_column(&mut self) {
         if self.active_column < self.columns.len().saturating_sub(1) {
             self.active_column += 1;
+        }
+    }
+
+    // Task navigation methods
+    pub fn select_prev_task(&mut self) {
+        if let Some(column) = self.columns.get_mut(self.active_column) {
+            if column.tasks.is_empty() {
+                column.selected_task = None;
+                return;
+            }
+
+            match column.selected_task {
+                Some(current) if current > 0 => {
+                    column.selected_task = Some(current - 1);
+                }
+                None if !column.tasks.is_empty() => {
+                    // If no task is selected but there are tasks, select the last one
+                    column.selected_task = Some(column.tasks.len() - 1);
+                }
+                _ => {} // Already at the first task or no tasks
+            }
+        }
+    }
+
+    pub fn select_next_task(&mut self) {
+        if let Some(column) = self.columns.get_mut(self.active_column) {
+            if column.tasks.is_empty() {
+                column.selected_task = None;
+                return;
+            }
+
+            match column.selected_task {
+                Some(current) if current < column.tasks.len() - 1 => {
+                    column.selected_task = Some(current + 1);
+                }
+                None if !column.tasks.is_empty() => {
+                    // If no task is selected but there are tasks, select the first one
+                    column.selected_task = Some(0);
+                }
+                _ => {} // Already at the last task or no tasks
+            }
         }
     }
 }

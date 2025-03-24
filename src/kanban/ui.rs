@@ -125,11 +125,22 @@ pub fn ui(f: &mut Frame, app: &App) {
         let tasks: Vec<ListItem> = column
             .tasks
             .iter()
-            .map(|task| ListItem::new(Span::raw(&task.title)))
+            .enumerate()
+            .map(|(i, task)| {
+                let task_style = if column.selected_task == Some(i) {
+                    Style::default()
+                        .fg(Color::White)
+                        .bg(Color::Blue)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
+
+                ListItem::new(Span::styled(&task.title, task_style))
+            })
             .collect();
 
-        let tasks_list =
-            List::new(tasks).highlight_style(Style::default().add_modifier(Modifier::BOLD));
+        let tasks_list = List::new(tasks);
 
         f.render_widget(tasks_list, column_layout[2]);
     }
@@ -137,7 +148,7 @@ pub fn ui(f: &mut Frame, app: &App) {
     // Add navigation help at the bottom
     let help_text = match app.input_mode {
         InputMode::Normal => {
-            "Use 'h'/'l' to navigate columns | Ctrl+L to add a column | Ctrl+M for move mode | 'q' to quit"
+            "Use 'h'/'l' to navigate columns | 'j'/'k' to navigate tasks | Ctrl+L to add a column | Ctrl+M for move mode | 'q' to quit"
         }
         InputMode::AddingColumn => "Enter column name | Enter to confirm | Esc to cancel",
         InputMode::MoveMode => "Press 0-9 to jump to that column | Esc to cancel",
@@ -290,6 +301,12 @@ pub fn run_app(
                     }
                     KeyCode::Char('l') => {
                         app.select_next_column();
+                    }
+                    KeyCode::Char('j') => {
+                        app.select_next_task();
+                    }
+                    KeyCode::Char('k') => {
+                        app.select_prev_task();
                     }
                     _ => {}
                 },
