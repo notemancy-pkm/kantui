@@ -21,6 +21,7 @@ pub enum InputMode {
     ConfirmDeleteColumn,
     BoardSelection, // New mode for board selection popup
     AddingBoard,    // New mode for creating a new board
+    ColumnSelectionMode,
 }
 
 // Define the application structure with added storage fields

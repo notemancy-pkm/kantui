@@ -99,6 +99,14 @@ pub fn run_app(
                             KeyCode::Char('l') => app.select_next_column(),
                             KeyCode::Char('j') => app.select_next_task(),
                             KeyCode::Char('k') => app.select_prev_task(),
+                            KeyCode::Char('g') => {
+                                // Only enter column selection mode if there's a task selected in the current column
+                                if let Some(column) = app.columns.get(app.active_column) {
+                                    if column.selected_task.is_some() {
+                                        app.input_mode = InputMode::ColumnSelectionMode;
+                                    }
+                                }
+                            }
                             // Don't use 'j' with CONTROL again
                             // KeyCode::Char('j') if key.modifiers == KeyModifiers::CONTROL => {
                             //     app.input_mode = InputMode::MoveMode;
@@ -166,6 +174,22 @@ pub fn run_app(
                         app.input_mode = InputMode::Normal;
                     }
                     KeyCode::Char('n') => app.input_mode = InputMode::Normal,
+                    _ => {}
+                },
+                InputMode::ColumnSelectionMode => match key.code {
+                    KeyCode::Esc => app.input_mode = InputMode::Normal,
+                    KeyCode::Char(c) if c >= '1' && c <= '9' => {
+                        let index = c.to_digit(10).unwrap() as usize;
+                        // Handle the column index: key 1 maps to index 0, key 2 to index 1, etc.
+                        let target_index = index - 1;
+
+                        // Only move if the target index is valid and not the current column
+                        if target_index < app.columns.len() && target_index != app.active_column {
+                            app.move_task_to_column(target_index);
+                        }
+
+                        app.input_mode = InputMode::Normal;
+                    }
                     _ => {}
                 },
             }

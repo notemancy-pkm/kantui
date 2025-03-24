@@ -151,6 +151,9 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
         InputMode::AddingTask => "Enter task name | Enter to confirm | Esc to cancel",
         InputMode::MoveMode => "Press 0-9 to jump to that column | Esc to cancel",
         InputMode::ConfirmDeleteColumn => "Press y to delete | n to cancel",
+        InputMode::ColumnSelectionMode => {
+            "Press number to move task to that column | Esc to cancel"
+        }
         _ => "", // BoardSelection and AddingBoard are handled separately
     };
     let help = Paragraph::new(help_text)
@@ -321,6 +324,9 @@ fn draw_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
         InputMode::BoardSelection | InputMode::AddingBoard => {
             // These are handled separately in draw_board_selection and draw_new_board_popup
         }
+        InputMode::ColumnSelectionMode => {
+            draw_column_selection_popup(f, app, size);
+        }
         InputMode::AddingColumn => {
             let popup_width = 70;
             let popup_height = 5;
@@ -403,4 +409,65 @@ fn draw_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
             // No popups for these modes
         }
     }
+}
+
+fn draw_column_selection_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
+    let popup_width = 50;
+    let popup_height = std::cmp::min(app.columns.len() as u16 + 4, 15); // Max height of 15
+
+    let popup_area = ratatui::layout::Rect::new(
+        (size.width.saturating_sub(popup_width)) / 2,
+        (size.height.saturating_sub(popup_height)) / 2,
+        popup_width.min(size.width),
+        popup_height.min(size.height),
+    );
+
+    f.render_widget(Clear, popup_area);
+    let popup_block = Block::default()
+        .title("Move Task to Column")
+        .borders(Borders::ALL)
+        .style(Style::default().bg(Color::Rgb(38, 38, 38))); // #262626 for popup bg
+
+    f.render_widget(&popup_block, popup_area);
+
+    let inner = popup_block.inner(popup_area);
+
+    // Calculate the available height for the column list
+    let list_height = inner.height.saturating_sub(2);
+
+    // Create a list of columns with their indices, starting from 1
+    let list_items: Vec<ListItem> = app
+        .columns
+        .iter()
+        .enumerate()
+        .map(|(i, col)| {
+            // Format column index starting from 1
+            let text = format!("{}: {}", i + 1, col.title);
+
+            ListItem::new(text).style(if i == app.active_column {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .bg(Color::Rgb(38, 38, 38))
+            } else {
+                Style::default().bg(Color::Rgb(38, 38, 38))
+            })
+        })
+        .collect();
+
+    let columns_list = List::new(list_items)
+        .block(Block::default().style(Style::default().bg(Color::Rgb(38, 38, 38))));
+
+    let list_area = ratatui::layout::Rect::new(inner.x, inner.y, inner.width, list_height);
+
+    f.render_widget(columns_list, list_area);
+
+    // Instructions
+    let instructions = Paragraph::new("Press a number to move task to that column, Esc to cancel")
+        .style(Style::default().fg(Color::Gray).bg(Color::Rgb(38, 38, 38)))
+        .alignment(Alignment::Center);
+
+    let instructions_area =
+        ratatui::layout::Rect::new(inner.x, inner.y + list_height, inner.width, 2);
+
+    f.render_widget(instructions, instructions_area);
 }
