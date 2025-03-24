@@ -172,6 +172,30 @@ pub fn run_app(
                                 eprintln!("Error saving board: {}", e);
                             }
                         }
+                        KeyCode::Char('r') => {
+                            // 'r' prefix for rename commands
+                            match event::read()? {
+                                Event::Key(key) => match key.code {
+                                    KeyCode::Char('c') => {
+                                        // Only allow renaming if there's at least one column
+                                        if !app.columns.is_empty() {
+                                            app.prepare_rename_column();
+                                        }
+                                    }
+                                    KeyCode::Char('t') => {
+                                        // Only allow renaming if there's a selected task
+                                        if let Some(column) = app.columns.get(app.active_column) {
+                                            if column.selected_task.is_some() {
+                                                app.prepare_rename_task();
+                                            }
+                                        }
+                                    }
+                                    _ => {} // Ignore other characters
+                                },
+                                _ => {} // Ignore other events
+                            }
+                        }
+
                         _ => {}
                     }
                     // }
@@ -288,6 +312,44 @@ pub fn run_app(
                         }
                     }
                     _ => {} // Other keys do nothing - stay in jump mode
+                },
+                InputMode::RenamingColumn => match key.code {
+                    KeyCode::Enter => {
+                        let new_name = if app.input_text.is_empty() {
+                            "Unnamed Column".to_string()
+                        } else {
+                            app.input_text.clone()
+                        };
+                        app.rename_current_column(&new_name);
+                    }
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                        app.input_text.clear();
+                    }
+                    KeyCode::Char(c) => app.input_text.push(c),
+                    KeyCode::Backspace => {
+                        app.input_text.pop();
+                    }
+                    _ => {}
+                },
+                InputMode::RenamingTask => match key.code {
+                    KeyCode::Enter => {
+                        let new_name = if app.input_text.is_empty() {
+                            "Unnamed Task".to_string()
+                        } else {
+                            app.input_text.clone()
+                        };
+                        app.rename_current_task(&new_name);
+                    }
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                        app.input_text.clear();
+                    }
+                    KeyCode::Char(c) => app.input_text.push(c),
+                    KeyCode::Backspace => {
+                        app.input_text.pop();
+                    }
+                    _ => {}
                 },
             }
         }

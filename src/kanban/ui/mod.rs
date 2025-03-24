@@ -1,4 +1,5 @@
 pub mod input_handler;
+pub mod popups;
 pub mod render;
 pub mod task_formatter;
 

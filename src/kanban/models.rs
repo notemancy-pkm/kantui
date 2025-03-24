@@ -25,6 +25,8 @@ pub enum InputMode {
     ColumnSelectionMode,
     JumpToColumnMode,
     JumpToTaskMode,
+    RenamingColumn,
+    RenamingTask,
 }
 
 // Define the application structure with added storage fields
@@ -528,6 +530,86 @@ impl App {
 
             // Save changes to file
             let _ = self.save_board();
+        }
+    }
+
+    pub fn rename_current_column(&mut self, new_name: &str) {
+        // Only proceed if there are columns
+        if self.columns.is_empty() {
+            return;
+        }
+
+        // Ensure the column name is unique
+        let mut unique_name = new_name.to_string();
+        let mut counter = 1;
+
+        while self.columns.iter().any(|col| {
+            col.title == unique_name && col.title != self.columns[self.active_column].title
+        }) {
+            unique_name = format!("{} ({})", new_name, counter);
+            counter += 1;
+        }
+
+        // Rename the active column
+        if let Some(column) = self.columns.get_mut(self.active_column) {
+            column.title = unique_name;
+        }
+
+        // Save changes to file
+        let _ = self.save_board();
+
+        // Exit input mode
+        self.input_mode = InputMode::Normal;
+        self.input_text.clear();
+    }
+
+    /// Rename the current task
+    pub fn rename_current_task(&mut self, new_name: &str) {
+        // Only proceed if we have an active column and a selected task
+        if let Some(column) = self.columns.get_mut(self.active_column) {
+            if let Some(task_idx) = column.selected_task {
+                if task_idx < column.tasks.len() {
+                    if let Some(task) = column.tasks.get_mut(task_idx) {
+                        task.title = new_name.to_string();
+
+                        // Save changes to file
+                        let _ = self.save_board();
+                    }
+                }
+            }
+        }
+
+        // Exit input mode
+        self.input_mode = InputMode::Normal;
+        self.input_text.clear();
+    }
+
+    /// Prepare for renaming a column
+    pub fn prepare_rename_column(&mut self) {
+        // Only proceed if there are columns
+        if self.columns.is_empty() {
+            return;
+        }
+
+        // Set input text to current column name for editing
+        if let Some(column) = self.columns.get(self.active_column) {
+            self.input_text = column.title.clone();
+            self.input_mode = InputMode::RenamingColumn;
+        }
+    }
+
+    /// Prepare for renaming a task
+    pub fn prepare_rename_task(&mut self) {
+        // Only proceed if we have an active column and a selected task
+        if let Some(column) = self.columns.get(self.active_column) {
+            if let Some(task_idx) = column.selected_task {
+                if task_idx < column.tasks.len() {
+                    if let Some(task) = column.tasks.get(task_idx) {
+                        self.input_text = task.title.clone();
+                        self.input_mode = InputMode::RenamingTask;
+                    }
+                }
+            }
         }
     }
 }
