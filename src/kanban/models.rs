@@ -1,3 +1,6 @@
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use std::io;
+
 // Define a structure for a task
 pub struct Task {
     pub title: String,
@@ -15,6 +18,7 @@ pub struct Column {
 pub enum InputMode {
     Normal,
     AddingColumn,
+    AddingTask,
     MoveMode,
 }
 
@@ -149,6 +153,45 @@ impl App {
                     column.selected_task = Some(0);
                 }
                 _ => {} // Already at the last task or no tasks
+            }
+        }
+    }
+
+    pub fn add_task(&mut self, title: &str) {
+        if let Some(column) = self.columns.get_mut(self.active_column) {
+            let new_task = Task {
+                title: title.to_string(),
+                description: None,
+            };
+
+            column.tasks.push(new_task);
+
+            // Select the newly added task
+            column.selected_task = Some(column.tasks.len() - 1);
+
+            // Exit input mode
+            self.input_mode = InputMode::Normal;
+            self.input_text.clear();
+        }
+    }
+
+    pub fn delete_current_task(&mut self) {
+        if let Some(column) = self.columns.get_mut(self.active_column) {
+            if let Some(task_idx) = column.selected_task {
+                if task_idx < column.tasks.len() {
+                    // Remove the task
+                    column.tasks.remove(task_idx);
+
+                    // Adjust the selection
+                    if column.tasks.is_empty() {
+                        column.selected_task = None;
+                    } else if task_idx >= column.tasks.len() {
+                        // If we removed the last task, select the new last task
+                        column.selected_task = Some(column.tasks.len() - 1);
+                    }
+                    // If we removed a task in the middle, the index stays the same
+                    // and now points to the next task that shifted up
+                }
             }
         }
     }

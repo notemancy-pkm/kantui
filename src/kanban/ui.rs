@@ -160,9 +160,10 @@ pub fn ui(f: &mut Frame, app: &App) {
     // Add navigation help at the bottom
     let help_text = match app.input_mode {
         InputMode::Normal => {
-            "Use 'h'/'l' to navigate columns | 'j'/'k' to navigate tasks | Ctrl+L to add a column | Ctrl+M for move mode | 'q' to quit"
+            "Use 'h'/'l' to navigate columns | 'j'/'k' to navigate tasks | Ctrl+L to add column | Ctrl+T to add task | Ctrl+D to delete task | Ctrl+M for move mode | 'q' to quit"
         }
         InputMode::AddingColumn => "Enter column name | Enter to confirm | Esc to cancel",
+        InputMode::AddingTask => "Enter task name | Enter to confirm | Esc to cancel",
         InputMode::MoveMode => "Press 0-9 to jump to that column | Esc to cancel",
     };
 
@@ -177,7 +178,7 @@ pub fn ui(f: &mut Frame, app: &App) {
 
     f.render_widget(help, help_layout[1]);
 
-    // Draw popup overlay for adding a column
+    // Draw popup overlay for adding a column or task
     if let InputMode::AddingColumn = app.input_mode {
         // Create a centered popup
         let popup_width = 50;
@@ -195,6 +196,42 @@ pub fn ui(f: &mut Frame, app: &App) {
         // Create the popup block
         let popup_block = Block::default()
             .title("New Column")
+            .borders(Borders::ALL)
+            .style(Style::default());
+
+        f.render_widget(&popup_block, popup_area);
+
+        // Create the input field
+        let input_area = popup_block.inner(popup_area);
+
+        let input = Paragraph::new(app.input_text.clone())
+            .style(Style::default())
+            .block(Block::default());
+
+        f.render_widget(input, input_area);
+
+        // Set cursor to the end of input
+        f.set_cursor_position(Position {
+            x: input_area.x + app.input_text.len() as u16,
+            y: input_area.y,
+        });
+    } else if let InputMode::AddingTask = app.input_mode {
+        // Create a centered popup
+        let popup_width = 50;
+        let popup_height = 3;
+        let popup_area = ratatui::layout::Rect::new(
+            (size.width.saturating_sub(popup_width)) / 2,
+            (size.height.saturating_sub(popup_height)) / 2,
+            popup_width.min(size.width),
+            popup_height.min(size.height),
+        );
+
+        // Create a clear background for the popup
+        f.render_widget(Clear, popup_area);
+
+        // Create the popup block
+        let popup_block = Block::default()
+            .title("New Task")
             .borders(Borders::ALL)
             .style(Style::default());
 
@@ -311,6 +348,12 @@ pub fn run_app(
                         // Enter move mode with Ctrl+M
                         app.input_mode = InputMode::MoveMode;
                     }
+                    KeyCode::Char('a') if key.modifiers == KeyModifiers::CONTROL => {
+                        app.input_mode = InputMode::AddingTask;
+                    }
+                    KeyCode::Char('d') if key.modifiers == KeyModifiers::CONTROL => {
+                        app.delete_current_task();
+                    }
                     KeyCode::Char('l') => {
                         app.select_next_column();
                     }
@@ -330,6 +373,27 @@ pub fn run_app(
                             app.input_text.clone()
                         };
                         app.add_column(&column_name);
+                    }
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                        app.input_text.clear();
+                    }
+                    KeyCode::Char(c) => {
+                        app.input_text.push(c);
+                    }
+                    KeyCode::Backspace => {
+                        app.input_text.pop();
+                    }
+                    _ => {}
+                },
+                InputMode::AddingTask => match key.code {
+                    KeyCode::Enter => {
+                        let task_name = if app.input_text.is_empty() {
+                            "New Task".to_string()
+                        } else {
+                            app.input_text.clone()
+                        };
+                        app.add_task(&task_name);
                     }
                     KeyCode::Esc => {
                         app.input_mode = InputMode::Normal;
