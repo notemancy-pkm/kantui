@@ -15,6 +15,13 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
     let size = f.area();
 
     // Set the background color for the entire app
+    // let background = Block::default()
+    //     .style(Style::default().bg(Color::Rgb(22, 22, 22))) // #161616
+    //     .borders(Borders::NONE);
+    // f.render_widget(background, size);
+
+    // Clear the terminal with our background color
+    f.render_widget(Clear, size); // First clear any existing content
     let background = Block::default()
         .style(Style::default().bg(Color::Rgb(22, 22, 22))) // #161616
         .borders(Borders::NONE);

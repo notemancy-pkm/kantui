@@ -26,7 +26,7 @@ pub fn format_task_with_wrapping(
     show_jump_labels: bool,
 ) -> Text<'static> {
     let task_text = &task.title;
-    let indent = "   ";
+    let indent = "";
     let horizontal_padding: usize = 2;
     let effective_width = max_width as usize - (horizontal_padding * 2);
     let max_chars_first_line = effective_width;
