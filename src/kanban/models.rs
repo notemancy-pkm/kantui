@@ -295,17 +295,27 @@ impl App {
 
     pub fn select_prev_column(&mut self) {
         if self.active_column > 0 {
-            // Clear selection in the current column
-            // (visually it will still appear but when we render, we only highlight tasks in active column)
             self.active_column -= 1;
+
+            // Clear selection in all non-active columns
+            for (i, column) in self.columns.iter_mut().enumerate() {
+                if i != self.active_column {
+                    column.selected_task = None;
+                }
+            }
         }
     }
 
     pub fn select_next_column(&mut self) {
         if self.active_column < self.columns.len().saturating_sub(1) {
-            // Clear selection in the current column
-            // (visually it will still appear but when we render, we only highlight tasks in active column)
             self.active_column += 1;
+
+            // Clear selection in all non-active columns
+            for (i, column) in self.columns.iter_mut().enumerate() {
+                if i != self.active_column {
+                    column.selected_task = None;
+                }
+            }
         }
     }
 
@@ -374,6 +384,14 @@ impl App {
 
         if target < self.columns.len() {
             self.active_column = target;
+
+            // Clear selection in all non-active columns
+            for (i, column) in self.columns.iter_mut().enumerate() {
+                if i != self.active_column {
+                    column.selected_task = None;
+                }
+            }
+
             // Exit move mode after jumping
             self.input_mode = InputMode::Normal;
 
@@ -405,7 +423,11 @@ impl App {
                     // Add task to target column
                     if let Some(target_column) = self.columns.get_mut(target_column_idx) {
                         target_column.tasks.push(task);
-                        target_column.selected_task = Some(target_column.tasks.len() - 1);
+
+                        // Only update target column selection if we're making it the active column
+                        if self.active_column == target_column_idx {
+                            target_column.selected_task = Some(target_column.tasks.len() - 1);
+                        }
 
                         // Save changes
                         let _ = self.save_board();

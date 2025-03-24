@@ -100,6 +100,7 @@ impl App {
     }
 
     /// Update frontend App from backend Board
+    /// Update frontend App from backend Board
     fn update_from_backend_board(&mut self, board: crud::Board) {
         // Store original active column name to restore selection
         let active_column_name = self
@@ -136,11 +137,6 @@ impl App {
                 column.tasks.push(task);
             }
 
-            // Select first task if any
-            if !column.tasks.is_empty() {
-                column.selected_task = Some(0);
-            }
-
             self.columns.push(column);
         }
 
@@ -159,6 +155,15 @@ impl App {
             self.active_column = 0;
         } else if self.active_column >= self.columns.len() {
             self.active_column = self.columns.len() - 1;
+        }
+
+        // Set selection only for the active column
+        for (i, column) in self.columns.iter_mut().enumerate() {
+            if i == self.active_column && !column.tasks.is_empty() {
+                column.selected_task = Some(0);
+            } else {
+                column.selected_task = None;
+            }
         }
     }
 }
