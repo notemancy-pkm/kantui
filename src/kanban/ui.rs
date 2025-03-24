@@ -176,13 +176,13 @@ pub fn ui(f: &mut Frame, app: &App) {
                 //         .bg(Color::Blue)
                 //         .add_modifier(Modifier::BOLD)
                 // } else {
-                //     Style::default()
+                //     Style::default().bg(Color::Rgb(0, 0, 0)) // Black background (#000000)
                 // };
 
                 // Add a sparkle bullet and format the task text with wrapping - pass full width
                 let formatted_task = format_task_with_wrapping(&task.title, column_area.width);
 
-                // Create the task item
+                // Create the task item with black background and no border
                 let task_item =
                     ListItem::new(formatted_task).style(if column.selected_task == Some(i) {
                         Style::default()
@@ -190,7 +190,7 @@ pub fn ui(f: &mut Frame, app: &App) {
                             .bg(Color::Blue)
                             .add_modifier(Modifier::BOLD)
                     } else {
-                        Style::default()
+                        Style::default().bg(Color::Rgb(38, 38, 38)) // Black background (#000000)
                     });
 
                 // Add a blank line item after each task (except the last one)
@@ -202,7 +202,8 @@ pub fn ui(f: &mut Frame, app: &App) {
             })
             .collect();
 
-        let tasks_list = List::new(tasks);
+        // Change the List widget to use a block with no borders
+        let tasks_list = List::new(tasks).block(Block::default().borders(Borders::NONE));
 
         f.render_widget(tasks_list, column_layout[2]);
     }
