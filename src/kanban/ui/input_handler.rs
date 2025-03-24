@@ -133,20 +133,15 @@ pub fn run_app(
                                             app.space_pressed = false;
                                             space_combo = None;
                                         }
-                                        "j" => {
-                                            // Jump mode - need more input
-                                            match event::read()? {
-                                                Event::Key(key) => match key.code {
-                                                    KeyCode::Char('c') => {
-                                                        app.input_mode = InputMode::JumpToColumnMode
-                                                    }
-                                                    KeyCode::Char('t') => {
-                                                        app.input_mode = InputMode::JumpToTaskMode
-                                                    }
-                                                    _ => {} // Ignore other characters
-                                                },
-                                                _ => {} // Ignore other events
-                                            }
+                                        // Remove 'j' combo since we'll use gt and gc instead
+                                        "gc" => {
+                                            app.input_mode = InputMode::JumpToColumnMode;
+                                            // Reset combo state
+                                            app.space_pressed = false;
+                                            space_combo = None;
+                                        }
+                                        "gt" => {
+                                            app.input_mode = InputMode::JumpToTaskMode;
                                             // Reset combo state
                                             app.space_pressed = false;
                                             space_combo = None;
@@ -198,6 +193,21 @@ pub fn run_app(
                                 }
                             }
                             KeyCode::Char('g') => {
+                                // Handle 'g' prefix for jump shortcuts
+                                match event::read()? {
+                                    Event::Key(key) => match key.code {
+                                        KeyCode::Char('c') => {
+                                            app.input_mode = InputMode::JumpToColumnMode
+                                        }
+                                        KeyCode::Char('t') => {
+                                            app.input_mode = InputMode::JumpToTaskMode
+                                        }
+                                        _ => {} // Ignore other characters
+                                    },
+                                    _ => {} // Ignore other events
+                                }
+                            }
+                            KeyCode::Char('m') => {
                                 // Only enter column selection mode if there's a task selected in the current column
                                 if let Some(column) = app.columns.get(app.active_column) {
                                     if column.selected_task.is_some() {
