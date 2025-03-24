@@ -17,6 +17,7 @@ pub enum InputMode {
     AddingColumn,
     AddingTask,
     MoveMode,
+    ConfirmDeleteColumn,
 }
 
 // Define the application structure
@@ -86,6 +87,18 @@ impl App {
             self.active_column = target;
             // Exit move mode after jumping
             self.input_mode = InputMode::Normal;
+        }
+    }
+
+    pub fn delete_current_column(&mut self) {
+        if self.columns.is_empty() {
+            return;
+        }
+        // Remove the active column.
+        self.columns.remove(self.active_column);
+        // Adjust active_column if needed.
+        if self.active_column >= self.columns.len() && !self.columns.is_empty() {
+            self.active_column = self.columns.len() - 1;
         }
     }
 

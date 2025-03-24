@@ -232,6 +232,7 @@ pub fn ui(f: &mut Frame, app: &App) {
         InputMode::AddingColumn => "Enter column name | Enter to confirm | Esc to cancel",
         InputMode::AddingTask => "Enter task name | Enter to confirm | Esc to cancel",
         InputMode::MoveMode => "Press 0-9 to jump to that column | Esc to cancel",
+        InputMode::ConfirmDeleteColumn => "Press y to delete | n to cancel",
     };
 
     let help = Paragraph::new(help_text)
@@ -370,6 +371,34 @@ pub fn ui(f: &mut Frame, app: &App) {
             }
         }
     }
+    if let InputMode::ConfirmDeleteColumn = app.input_mode {
+        let popup_width = 50;
+        let popup_height = 3;
+        let popup_area = ratatui::layout::Rect::new(
+            (size.width.saturating_sub(popup_width)) / 2,
+            (size.height.saturating_sub(popup_height)) / 2,
+            popup_width.min(size.width),
+            popup_height.min(size.height),
+        );
+        f.render_widget(Clear, popup_area);
+        let popup_block = Block::default()
+            .title("Confirm Delete Column")
+            .borders(Borders::ALL)
+            .style(Style::default());
+        let inner = popup_block.inner(popup_area);
+        f.render_widget(&popup_block, popup_area);
+
+        // Get the name of the currently active column:
+        let column_name = if let Some(column) = app.columns.get(app.active_column) {
+            &column.title
+        } else {
+            ""
+        };
+        let text = Paragraph::new(format!("Delete column '{}' ? (y/n)", column_name))
+            .style(Style::default().fg(Color::Red))
+            .alignment(Alignment::Center);
+        f.render_widget(text, inner);
+    }
 }
 
 pub fn run_app(
@@ -377,6 +406,7 @@ pub fn run_app(
     mut app: App,
 ) -> io::Result<()> {
     use ratatui::crossterm::event::{self, Event, KeyCode, KeyModifiers};
+    let mut last_key: Option<ratatui::crossterm::event::KeyCode> = None;
 
     loop {
         // Calculate the max visible columns before drawing
@@ -403,37 +433,52 @@ pub fn run_app(
 
         if let Event::Key(key) = event::read()? {
             match app.input_mode {
-                InputMode::Normal => match key.code {
-                    KeyCode::Char('q') => {
-                        return Ok(());
+                InputMode::Normal => {
+                    // Check for dd sequence (plain 'd' key, with no modifiers)
+                    if key.modifiers.is_empty() && key.code == KeyCode::Char('d') {
+                        if let Some(KeyCode::Char('d')) = last_key {
+                            // 'dd' detected: clear last_key and enter confirmation mode
+                            last_key = None;
+                            app.input_mode = InputMode::ConfirmDeleteColumn;
+                            continue;
+                        } else {
+                            // First 'd' pressed; store it and wait for the next key
+                            last_key = Some(KeyCode::Char('d'));
+                            continue;
+                        }
+                    } else {
+                        // Any other key resets last_key
+                        last_key = None;
+                        match key.code {
+                            KeyCode::Char('q') => return Ok(()),
+                            KeyCode::Char('l') if key.modifiers == KeyModifiers::CONTROL => {
+                                app.input_mode = InputMode::AddingColumn;
+                            }
+                            KeyCode::Char('h') => {
+                                app.select_prev_column();
+                            }
+                            KeyCode::Char('k') if key.modifiers == KeyModifiers::CONTROL => {
+                                app.input_mode = InputMode::MoveMode;
+                            }
+                            KeyCode::Char('a') if key.modifiers == KeyModifiers::CONTROL => {
+                                app.input_mode = InputMode::AddingTask;
+                            }
+                            KeyCode::Char('d') if key.modifiers == KeyModifiers::CONTROL => {
+                                app.delete_current_task();
+                            }
+                            KeyCode::Char('l') => {
+                                app.select_next_column();
+                            }
+                            KeyCode::Char('j') => {
+                                app.select_next_task();
+                            }
+                            KeyCode::Char('k') => {
+                                app.select_prev_task();
+                            }
+                            _ => {}
+                        }
                     }
-                    KeyCode::Char('l') if key.modifiers == KeyModifiers::CONTROL => {
-                        app.input_mode = InputMode::AddingColumn;
-                    }
-                    KeyCode::Char('h') => {
-                        app.select_prev_column();
-                    }
-                    KeyCode::Char('k') if key.modifiers == KeyModifiers::CONTROL => {
-                        // Enter move mode with Ctrl+M
-                        app.input_mode = InputMode::MoveMode;
-                    }
-                    KeyCode::Char('a') if key.modifiers == KeyModifiers::CONTROL => {
-                        app.input_mode = InputMode::AddingTask;
-                    }
-                    KeyCode::Char('d') if key.modifiers == KeyModifiers::CONTROL => {
-                        app.delete_current_task();
-                    }
-                    KeyCode::Char('l') => {
-                        app.select_next_column();
-                    }
-                    KeyCode::Char('j') => {
-                        app.select_next_task();
-                    }
-                    KeyCode::Char('k') => {
-                        app.select_prev_task();
-                    }
-                    _ => {}
-                },
+                }
                 InputMode::AddingColumn => match key.code {
                     KeyCode::Enter => {
                         let column_name = if app.input_text.is_empty() {
@@ -485,6 +530,16 @@ pub fn run_app(
                         // Jump to column by number (0-9)
                         let index = c.to_digit(10).unwrap() as usize;
                         app.jump_to_column(index);
+                    }
+                    _ => {}
+                },
+                InputMode::ConfirmDeleteColumn => match key.code {
+                    KeyCode::Char('y') => {
+                        app.delete_current_column();
+                        app.input_mode = InputMode::Normal;
+                    }
+                    KeyCode::Char('n') => {
+                        app.input_mode = InputMode::Normal;
                     }
                     _ => {}
                 },
