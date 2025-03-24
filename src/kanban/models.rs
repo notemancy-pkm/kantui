@@ -1,6 +1,3 @@
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyModifiers};
-use std::io;
-
 // Define a structure for a task
 pub struct Task {
     pub title: String,

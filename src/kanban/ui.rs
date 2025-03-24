@@ -126,7 +126,7 @@ pub fn ui(f: &mut Frame, app: &App) {
             .tasks
             .iter()
             .enumerate()
-            .map(|(i, task)| {
+            .flat_map(|(i, task)| {
                 let task_style = if column.selected_task == Some(i) {
                     Style::default()
                         .fg(Color::White)
@@ -136,7 +136,19 @@ pub fn ui(f: &mut Frame, app: &App) {
                     Style::default()
                 };
 
-                ListItem::new(Span::styled(&task.title, task_style))
+                // Add a circle bullet and some padding
+                let task_text = format!(" ● {}  ", task.title);
+
+                // Create the task item
+                let task_item = ListItem::new(Span::styled(task_text, task_style))
+                    .style(Style::default().fg(Color::Reset));
+
+                // Add a blank line item after each task (except the last one)
+                if i < column.tasks.len() - 1 {
+                    vec![task_item, ListItem::new("")]
+                } else {
+                    vec![task_item]
+                }
             })
             .collect();
 
