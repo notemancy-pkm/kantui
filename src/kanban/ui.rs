@@ -4,14 +4,57 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Position},
     style::{Color, Modifier, Style},
-    text::Span,
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
 use std::io;
 
 // Define constants for UI elements
 const COLUMN_WIDTH: u16 = 50;
 const COLUMN_MARGIN: u16 = 2;
+
+// Function to format task text with wrapping
+fn format_task_with_wrapping(task_text: &str, max_width: u16) -> Text<'static> {
+    // Calculate exact number of characters that can fit
+    // Each column is exactly max_width characters wide
+    let bullet = " ✦ ";
+    let indent = "   "; // Indent for wrapped lines, aligns with text after bullet
+    let bullet_len = bullet.chars().count();
+    let max_chars_first_line = max_width as usize - bullet_len;
+    let max_chars_other_lines = max_width as usize - indent.len();
+
+    let task_text_owned = task_text.to_string(); // Create owned copy
+    let mut lines = Vec::new();
+
+    // Handle first line with bullet
+    let first_line_text = if task_text.len() > max_chars_first_line {
+        task_text[..max_chars_first_line].to_string()
+    } else {
+        task_text.to_string()
+    };
+
+    lines.push(Line::from(vec![
+        Span::styled(bullet, Style::default().fg(Color::Yellow)),
+        Span::raw(first_line_text),
+    ]));
+
+    // Handle additional lines if needed
+    if task_text.len() > max_chars_first_line {
+        let remaining_text = task_text[max_chars_first_line..].to_string();
+
+        let mut position = 0;
+        while position < remaining_text.len() {
+            let end_pos = std::cmp::min(position + max_chars_other_lines, remaining_text.len());
+            let line_text = remaining_text[position..end_pos].to_string();
+
+            lines.push(Line::from(vec![Span::raw(indent), Span::raw(line_text)]));
+
+            position = end_pos;
+        }
+    }
+
+    Text::from(lines)
+}
 
 pub fn ui(f: &mut Frame, app: &App) {
     let size = f.area();
@@ -136,12 +179,19 @@ pub fn ui(f: &mut Frame, app: &App) {
                     Style::default()
                 };
 
-                // Add a sparkle bullet and some padding
-                let task_text = format!(" ✦ {}  ", task.title);
+                // Add a sparkle bullet and format the task text with wrapping - pass full width
+                let formatted_task = format_task_with_wrapping(&task.title, column_area.width);
 
                 // Create the task item
-                let task_item = ListItem::new(Span::styled(task_text, task_style))
-                    .style(Style::default().fg(Color::Reset));
+                let task_item =
+                    ListItem::new(formatted_task).style(if column.selected_task == Some(i) {
+                        Style::default()
+                            .fg(Color::White)
+                            .bg(Color::Blue)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    });
 
                 // Add a blank line item after each task (except the last one)
                 if i < column.tasks.len() - 1 {
@@ -181,8 +231,8 @@ pub fn ui(f: &mut Frame, app: &App) {
     // Draw popup overlay for adding a column or task
     if let InputMode::AddingColumn = app.input_mode {
         // Create a centered popup
-        let popup_width = 50;
-        let popup_height = 3;
+        let popup_width = 70; // Increased width
+        let popup_height = 5; // Increased height to allow for multiline display
         let popup_area = ratatui::layout::Rect::new(
             (size.width.saturating_sub(popup_width)) / 2,
             (size.height.saturating_sub(popup_height)) / 2,
@@ -201,12 +251,13 @@ pub fn ui(f: &mut Frame, app: &App) {
 
         f.render_widget(&popup_block, popup_area);
 
-        // Create the input field
+        // Create the input field with wrapping
         let input_area = popup_block.inner(popup_area);
 
         let input = Paragraph::new(app.input_text.clone())
             .style(Style::default())
-            .block(Block::default());
+            .block(Block::default())
+            .wrap(Wrap { trim: true }); // Enable text wrapping
 
         f.render_widget(input, input_area);
 
@@ -217,8 +268,8 @@ pub fn ui(f: &mut Frame, app: &App) {
         });
     } else if let InputMode::AddingTask = app.input_mode {
         // Create a centered popup
-        let popup_width = 50;
-        let popup_height = 3;
+        let popup_width = 70; // Increased width
+        let popup_height = 5; // Increased height to allow for multiline display
         let popup_area = ratatui::layout::Rect::new(
             (size.width.saturating_sub(popup_width)) / 2,
             (size.height.saturating_sub(popup_height)) / 2,
@@ -237,12 +288,13 @@ pub fn ui(f: &mut Frame, app: &App) {
 
         f.render_widget(&popup_block, popup_area);
 
-        // Create the input field
+        // Create the input field with wrapping
         let input_area = popup_block.inner(popup_area);
 
         let input = Paragraph::new(app.input_text.clone())
             .style(Style::default())
-            .block(Block::default());
+            .block(Block::default())
+            .wrap(Wrap { trim: true }); // Enable text wrapping
 
         f.render_widget(input, input_area);
 
