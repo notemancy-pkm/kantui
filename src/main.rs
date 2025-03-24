@@ -39,6 +39,7 @@ struct App {
     scroll_offset: usize,
     input_mode: InputMode,
     input_text: String,
+    start_index: usize,
 }
 
 impl App {
@@ -59,6 +60,7 @@ impl App {
                 ],
             }],
             active_column: 0,
+            start_index: 0,
             scroll_offset: 0,
             input_mode: InputMode::Normal,
             input_text: String::new(),
@@ -100,21 +102,14 @@ impl App {
     fn select_prev_column(&mut self) {
         if self.active_column > 0 {
             self.active_column -= 1;
-            // Adjust scroll if needed
-            if self.active_column < self.scroll_offset {
-                self.scroll_offset = self.active_column;
-            }
+            // No need to adjust scroll_offset here anymore
         }
     }
 
     fn select_next_column(&mut self) {
         if self.active_column < self.columns.len().saturating_sub(1) {
             self.active_column += 1;
-            // Adjust scroll if needed
-            if self.active_column >= self.scroll_offset + 2 {
-                // Now showing 2 columns at a time with margins
-                self.scroll_offset = self.active_column.saturating_sub(1);
-            }
+            // No need to adjust scroll_offset here anymore
         }
     }
 }
@@ -149,6 +144,29 @@ fn main() -> Result<(), io::Error> {
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mut app: App) -> io::Result<()> {
     loop {
+        // Calculate the max visible columns before drawing
+        let backend_size = terminal.size()?;
+        // Subtract space for padding, title, help text, etc.
+        // Assuming 3 rows for title and 1 for help text
+        let available_width = backend_size.width;
+        const COLUMN_WIDTH: u16 = 50;
+        const COLUMN_MARGIN: u16 = 2;
+        let column_with_margin = COLUMN_WIDTH + (COLUMN_MARGIN * 2);
+        let max_visible_columns = (available_width / column_with_margin).max(1) as usize;
+
+        // Update scroll_offset based on active_column and max_visible_columns
+        if app.columns.len() <= max_visible_columns {
+            // If all columns fit, show all from the beginning
+            app.scroll_offset = 0;
+        } else if app.active_column >= app.scroll_offset + max_visible_columns {
+            // If active column is beyond current view, adjust scroll
+            app.scroll_offset = app.active_column + 1 - max_visible_columns;
+        } else if app.active_column < app.scroll_offset {
+            // If active column is before current view, adjust scroll
+            app.scroll_offset = app.active_column;
+        }
+        // Otherwise keep current scroll_offset
+
         terminal.draw(|f| ui(f, &app))?;
 
         if let Event::Key(key) = event::read()? {
@@ -194,6 +212,22 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mut app: App) 
     }
 }
 
+fn calculate_start_index(app: &App, max_visible_columns: usize) -> usize {
+    if app.columns.len() <= max_visible_columns {
+        // If all columns fit, show all from the beginning
+        0
+    } else if app.active_column >= app.start_index + max_visible_columns {
+        // If active column is beyond current view, adjust scroll
+        app.active_column + 1 - max_visible_columns
+    } else if app.active_column < app.start_index {
+        // If active column is before current view, adjust scroll
+        app.active_column
+    } else {
+        // Otherwise, keep current scroll position
+        app.start_index
+    }
+}
+
 fn ui(f: &mut ratatui::Frame, app: &App) {
     let size = f.area();
 
@@ -219,11 +253,30 @@ fn ui(f: &mut ratatui::Frame, app: &App) {
     // Calculate how many columns we can show at once
     let available_width = chunks[1].width;
     let column_with_margin = COLUMN_WIDTH + (COLUMN_MARGIN * 2);
-    let visible_columns = (available_width / column_with_margin).max(1) as usize;
+    let max_visible_columns = (available_width / column_with_margin).max(1) as usize;
+
+    // Determine the starting column index based on the active column
+    // Only scroll when active column goes beyond what we can display
+    let start_idx = if app.columns.len() <= max_visible_columns {
+        // If all columns fit, show all from the beginning
+        0
+    } else if app.active_column >= app.scroll_offset + max_visible_columns {
+        // If active column is beyond current view, adjust scroll
+        app.active_column + 1 - max_visible_columns
+    } else if app.active_column < app.scroll_offset {
+        // If active column is before current view, adjust scroll
+        app.active_column
+    } else {
+        // Otherwise, keep current scroll position
+        app.scroll_offset
+    };
+
+    // Calculate how many columns we can actually show
+    let visible_columns = max_visible_columns.min(app.columns.len() - start_idx);
 
     // Create constraints for the visible columns with margins
     let mut column_constraints = Vec::new();
-    for _ in 0..visible_columns.min(app.columns.len().saturating_sub(app.scroll_offset)) {
+    for _ in 0..visible_columns {
         // Left margin
         column_constraints.push(Constraint::Length(COLUMN_MARGIN));
         // Column
@@ -245,7 +298,7 @@ fn ui(f: &mut ratatui::Frame, app: &App) {
         .split(chunks[1]);
 
     // Render visible columns
-    for (layout_idx, column_idx) in (app.scroll_offset..app.columns.len())
+    for (layout_idx, column_idx) in (start_idx..app.columns.len())
         .enumerate()
         .take(visible_columns)
     {
