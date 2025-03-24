@@ -124,7 +124,22 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
             .iter()
             .enumerate()
             .flat_map(|(i, task)| {
-                let formatted_task = format_task_with_wrapping(task, column_area.width);
+                // Get jump label for this task if in jump task mode
+                let jump_label = if app.input_mode == InputMode::JumpToTaskMode {
+                    app.get_jump_label_for_task(column_idx, i)
+                } else {
+                    None
+                };
+
+                // Format task with optional jump label
+                let formatted_task = format_task_with_wrapping(
+                    task,
+                    column_area.width,
+                    jump_label,
+                    app.input_mode == InputMode::JumpToTaskMode,
+                );
+
+                // Apply appropriate styling
                 let style = if column.selected_task == Some(i) {
                     Style::default()
                         .fg(Color::White)
@@ -133,6 +148,7 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
                 } else {
                     Style::default().bg(Color::Rgb(38, 38, 38))
                 };
+
                 let task_item = ListItem::new(formatted_task).style(style);
                 vec![task_item, ListItem::new("")]
             })
@@ -155,6 +171,9 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
             "Press number to move task to that column | Esc to cancel"
         }
         InputMode::JumpToColumnMode => "Press number to jump to that column | Esc to cancel",
+        InputMode::JumpToTaskMode => {
+            "Press colored key shown on a task to jump to it | Esc to cancel"
+        }
         _ => "", // BoardSelection and AddingBoard are handled separately
     };
     let help = Paragraph::new(help_text)
@@ -409,7 +428,7 @@ fn draw_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
         InputMode::JumpToColumnMode => {
             draw_jump_column_popup(f, app, size);
         }
-        InputMode::Normal | InputMode::MoveMode => {
+        InputMode::Normal | InputMode::MoveMode | InputMode::JumpToTaskMode => {
             // No popups for these modes
         }
     }

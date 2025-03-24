@@ -24,6 +24,7 @@ pub enum InputMode {
     AddingBoard,    // New mode for creating a new board
     ColumnSelectionMode,
     JumpToColumnMode,
+    JumpToTaskMode,
 }
 
 // Define the application structure with added storage fields
@@ -439,6 +440,96 @@ impl App {
                     }
                 }
             }
+        }
+    }
+    // Get all possible jump labels
+    pub fn get_jump_labels(&self) -> Vec<char> {
+        // Use letters from a to z, excluding ambiguous ones
+        // This gives us 24 distinct labels (excluding 'l' and 'o' which can be confused)
+        let mut labels: Vec<char> = "abcdefghijkmnpqrstuvwxyz".chars().collect();
+
+        // If we need more labels, add capital letters
+        if self.total_task_count() > labels.len() {
+            let caps: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect();
+            labels.extend(caps);
+        }
+
+        labels
+    }
+
+    // Get the jump label for a specific task
+    pub fn get_jump_label_for_task(&self, col_idx: usize, task_idx: usize) -> Option<char> {
+        let labels = self.get_jump_labels();
+        let mut global_task_idx = 0;
+
+        // Count tasks until we reach the specified task
+        for (c_idx, col) in self.columns.iter().enumerate() {
+            for (t_idx, _) in col.tasks.iter().enumerate() {
+                if c_idx == col_idx && t_idx == task_idx {
+                    // Found our task, return its label if available
+                    return if global_task_idx < labels.len() {
+                        Some(labels[global_task_idx])
+                    } else {
+                        None
+                    };
+                }
+                global_task_idx += 1;
+            }
+        }
+
+        None
+    }
+
+    // Find a task by its jump label
+    pub fn get_task_by_jump_label(&self, label: char) -> Option<(usize, usize)> {
+        let labels = self.get_jump_labels();
+        let label_idx = labels.iter().position(|&c| c == label)?;
+
+        let mut global_task_idx = 0;
+
+        // Iterate through all tasks to find the one with matching label index
+        for (col_idx, col) in self.columns.iter().enumerate() {
+            for (task_idx, _) in col.tasks.iter().enumerate() {
+                if global_task_idx == label_idx {
+                    return Some((col_idx, task_idx));
+                }
+                global_task_idx += 1;
+            }
+        }
+
+        None
+    }
+
+    // Count total tasks across all columns
+    pub fn total_task_count(&self) -> usize {
+        self.columns.iter().map(|col| col.tasks.len()).sum()
+    }
+
+    // Jump to a specific task
+    pub fn jump_to_task(&mut self, column_idx: usize, task_idx: usize) {
+        if column_idx < self.columns.len() {
+            // First, switch to the column
+            self.active_column = column_idx;
+
+            // Clear selection in all columns
+            for (i, column) in self.columns.iter_mut().enumerate() {
+                if i != self.active_column {
+                    column.selected_task = None;
+                }
+            }
+
+            // Then select the task if it exists
+            if let Some(column) = self.columns.get_mut(column_idx) {
+                if task_idx < column.tasks.len() {
+                    column.selected_task = Some(task_idx);
+                }
+            }
+
+            // Exit jump mode
+            self.input_mode = InputMode::Normal;
+
+            // Save changes to file
+            let _ = self.save_board();
         }
     }
 }

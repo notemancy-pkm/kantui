@@ -105,9 +105,20 @@ pub fn run_app(
                             }
                             KeyCode::Char('j') if app.space_pressed => {
                                 app.space_pressed = false;
-                                app.input_mode = InputMode::JumpToColumnMode;
+                                // Check for a second character
+                                match event::read()? {
+                                    Event::Key(key) => match key.code {
+                                        KeyCode::Char('c') => {
+                                            app.input_mode = InputMode::JumpToColumnMode
+                                        }
+                                        KeyCode::Char('t') => {
+                                            app.input_mode = InputMode::JumpToTaskMode
+                                        }
+                                        _ => {} // Ignore other characters
+                                    },
+                                    _ => {} // Ignore other events
+                                }
                             }
-
                             KeyCode::Char('t') if app.space_pressed => {
                                 app.space_pressed = false;
                                 app.input_mode = InputMode::AddingTask;
@@ -251,6 +262,20 @@ pub fn run_app(
                         app.input_mode = InputMode::Normal;
                     }
                     _ => app.input_mode = InputMode::Normal, // Any other key cancels the mode
+                },
+                InputMode::JumpToTaskMode => match key.code {
+                    KeyCode::Esc => app.input_mode = InputMode::Normal,
+                    KeyCode::Char(c) => {
+                        // Check if the character is a valid jump label
+                        if let Some(task_info) = app.get_task_by_jump_label(c) {
+                            app.jump_to_task(task_info.0, task_info.1);
+                            // Mode will be reset to Normal in jump_to_task
+                        } else {
+                            // If not a valid label, stay in jump mode
+                            // This allows users to see the labels and try again
+                        }
+                    }
+                    _ => {} // Other keys do nothing - stay in jump mode
                 },
             }
         }
