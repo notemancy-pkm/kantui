@@ -17,7 +17,7 @@ pub fn format_task_with_wrapping(task_text: &str, max_width: u16) -> Text<'stati
     let mut lines = Vec::new();
 
     // Add an initial padding line.
-    lines.push(Line::from(vec![Span::raw("")]));
+    // lines.push(Line::from(vec![Span::raw("")]));
 
     // Format the first line with a bullet.
     let first_line_text = if task_text.len() > max_chars_first_line {
@@ -32,7 +32,7 @@ pub fn format_task_with_wrapping(task_text: &str, max_width: u16) -> Text<'stati
         Span::raw(" ".repeat(horizontal_padding)),
         Span::styled(bullet, Style::default().fg(Color::Yellow)),
         Span::raw(first_line_text),
-        Span::raw(" ".repeat(first_line_padding)),
+        // Span::raw(" ".repeat(first_line_padding)),
         Span::raw(" ".repeat(horizontal_padding)),
     ]));
 
@@ -56,7 +56,7 @@ pub fn format_task_with_wrapping(task_text: &str, max_width: u16) -> Text<'stati
     }
 
     // Add a final padding line.
-    lines.push(Line::from(vec![Span::raw("")]));
+    // lines.push(Line::from(vec![Span::raw("")]));
 
     Text::from(lines)
 }

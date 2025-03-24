@@ -17,6 +17,12 @@ const COLUMN_MARGIN: u16 = 2;
 pub fn draw_ui(f: &mut Frame, app: &App) {
     let size = f.area();
 
+    // Set the background color for the entire app
+    let background = Block::default()
+        .style(Style::default().bg(Color::Rgb(22, 22, 22))) // #161616
+        .borders(Borders::NONE);
+    f.render_widget(background, size);
+
     // Check if we need to show the board selection popup
     match app.input_mode {
         InputMode::BoardSelection => {
@@ -37,7 +43,7 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
         .block(Block::default());
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(2), Constraint::Min(0)].as_ref())
+        .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
         .split(size);
     f.render_widget(title, chunks[0]);
 
@@ -123,10 +129,10 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
                     // Only highlight if this is the active column AND this task is selected
                     Style::default()
                         .fg(Color::White)
-                        .bg(Color::Blue)
+                        .bg(Color::Rgb(82, 82, 82)) // #525252 for selection
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().bg(Color::Rgb(38, 38, 38))
+                    Style::default().bg(Color::Rgb(38, 38, 38)) // #262626 for tasks
                 };
                 let task_item = ListItem::new(formatted_task).style(style);
                 vec![task_item, ListItem::new("")]
@@ -148,7 +154,11 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
         _ => "", // BoardSelection and AddingBoard are handled separately
     };
     let help = Paragraph::new(help_text)
-        .style(Style::default().fg(Color::DarkGray))
+        .style(
+            Style::default()
+                .fg(Color::DarkGray)
+                .bg(Color::Rgb(22, 22, 22)),
+        ) // #161616 for bg
         .alignment(Alignment::Center);
     let help_layout = Layout::default()
         .direction(Direction::Vertical)
@@ -162,8 +172,11 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
 
 /// Helper function to draw the board selection popup
 fn draw_board_selection(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
-    // Clear the screen
-    f.render_widget(Clear, size);
+    // Clear the screen with background color
+    let background = Block::default()
+        .style(Style::default().bg(Color::Rgb(22, 22, 22))) // #161616
+        .borders(Borders::NONE);
+    f.render_widget(background, size);
 
     // Create a centered popup
     let popup_width = 60;
@@ -180,7 +193,7 @@ fn draw_board_selection(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
     let popup_block = Block::default()
         .title("Select Kanban Board")
         .borders(Borders::ALL)
-        .style(Style::default().fg(Color::Cyan));
+        .style(Style::default().fg(Color::Blue).bg(Color::Rgb(38, 38, 38))); // #262626 for popup bg
 
     f.render_widget(popup_block.clone(), popup_area);
 
@@ -218,13 +231,13 @@ fn draw_board_selection(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
                 let style = if app.selected_board_index == Some(i) {
                     Style::default()
                         .fg(Color::White)
-                        .bg(Color::Blue)
+                        .bg(Color::Rgb(82, 82, 82)) // #525252 for selection
                         .add_modifier(Modifier::BOLD)
                 } else if i == app.available_boards.len() - 1 {
                     // Special style for "Create New Board" option
-                    Style::default().fg(Color::Green)
+                    Style::default().fg(Color::Green).bg(Color::Rgb(38, 38, 38)) // #262626 for bg
                 } else {
-                    Style::default()
+                    Style::default().bg(Color::Rgb(38, 38, 38)) // #262626 for bg
                 };
 
                 // Special formatting for "Create New Board" option
@@ -239,8 +252,8 @@ fn draw_board_selection(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
             .collect();
 
         let boards_list = List::new(board_items)
-            .block(Block::default())
-            .highlight_style(Style::default().bg(Color::Blue).fg(Color::White));
+            .block(Block::default().style(Style::default().bg(Color::Rgb(38, 38, 38)))) // #262626 for block bg
+            .highlight_style(Style::default().bg(Color::Rgb(82, 82, 82)).fg(Color::White)); // #525252 for highlight
 
         f.render_widget(boards_list, popup_chunks[1]);
     }
@@ -256,6 +269,12 @@ fn draw_board_selection(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
 
 /// Helper function to draw the new board creation popup
 fn draw_new_board_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
+    // Set background color
+    let background = Block::default()
+        .style(Style::default().bg(Color::Rgb(22, 22, 22))) // #161616
+        .borders(Borders::NONE);
+    f.render_widget(background, size);
+
     let popup_width = 60;
     let popup_height = 5;
 
@@ -266,20 +285,25 @@ fn draw_new_board_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
         popup_height.min(size.height),
     );
 
+    // Clear the area first to ensure clean rendering
     f.render_widget(Clear, popup_area);
 
     let popup_block = Block::default()
         .title("Create New Board")
         .borders(Borders::ALL)
-        .style(Style::default());
+        .style(Style::default().bg(Color::Rgb(38, 38, 38))); // #262626 for popup bg
 
     f.render_widget(&popup_block, popup_area);
 
     let input_area = popup_block.inner(popup_area);
 
     let input = Paragraph::new(app.input_text.clone())
-        .style(Style::default())
-        .block(Block::default().title("Enter board name:"))
+        .style(Style::default().bg(Color::Rgb(38, 38, 38))) // #262626 for input background
+        .block(
+            Block::default()
+                .title("Enter board name:")
+                .style(Style::default().bg(Color::Rgb(38, 38, 38))),
+        ) // #262626 for input block
         .wrap(Wrap { trim: true });
 
     f.render_widget(input, input_area);
@@ -310,12 +334,12 @@ fn draw_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
             let popup_block = Block::default()
                 .title("New Column")
                 .borders(Borders::ALL)
-                .style(Style::default());
+                .style(Style::default().bg(Color::Rgb(38, 38, 38))); // #262626 for popup bg
             f.render_widget(&popup_block, popup_area);
             let input_area = popup_block.inner(popup_area);
             let input = Paragraph::new(app.input_text.clone())
-                .style(Style::default())
-                .block(Block::default())
+                .style(Style::default().bg(Color::Rgb(38, 38, 38))) // #262626 for input bg
+                .block(Block::default()) // #262626 for block bg
                 .wrap(Wrap { trim: true });
             f.render_widget(input, input_area);
             f.set_cursor_position(Position {
@@ -336,12 +360,12 @@ fn draw_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
             let popup_block = Block::default()
                 .title("New Task")
                 .borders(Borders::ALL)
-                .style(Style::default());
+                .style(Style::default().bg(Color::Rgb(38, 38, 38))); // #262626 for popup bg
             f.render_widget(&popup_block, popup_area);
             let input_area = popup_block.inner(popup_area);
             let input = Paragraph::new(app.input_text.clone())
-                .style(Style::default())
-                .block(Block::default())
+                .style(Style::default().bg(Color::Rgb(38, 38, 38))) // #262626 for input bg
+                .block(Block::default()) // #262626 for block bg
                 .wrap(Wrap { trim: true });
             f.render_widget(input, input_area);
             f.set_cursor_position(Position {
@@ -362,7 +386,7 @@ fn draw_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
             let popup_block = Block::default()
                 .title("Confirm Delete Column")
                 .borders(Borders::ALL)
-                .style(Style::default());
+                .style(Style::default().bg(Color::Rgb(38, 38, 38))); // #262626 for popup bg
             f.render_widget(&popup_block, popup_area);
             let inner = popup_block.inner(popup_area);
             let column_name = app
@@ -371,7 +395,7 @@ fn draw_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
                 .map(|col| col.title.as_str())
                 .unwrap_or("");
             let text = Paragraph::new(format!("Delete column '{}' ? (y/n)", column_name))
-                .style(Style::default().fg(Color::Red))
+                .style(Style::default().fg(Color::Red).bg(Color::Rgb(38, 38, 38))) // #262626 for text bg
                 .alignment(Alignment::Center);
             f.render_widget(text, inner);
         }
