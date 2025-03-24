@@ -23,7 +23,7 @@ fn format_task_with_wrapping(task_text: &str, max_width: u16) -> Text<'static> {
     let max_chars_first_line = max_width as usize - bullet_len;
     let max_chars_other_lines = max_width as usize - indent.len();
 
-    let task_text_owned = task_text.to_string(); // Create owned copy
+    // let task_text_owned = task_text.to_string(); // Create owned copy
     let mut lines = Vec::new();
 
     // Handle first line with bullet
@@ -170,14 +170,14 @@ pub fn ui(f: &mut Frame, app: &App) {
             .iter()
             .enumerate()
             .flat_map(|(i, task)| {
-                let task_style = if column.selected_task == Some(i) {
-                    Style::default()
-                        .fg(Color::White)
-                        .bg(Color::Blue)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                };
+                // let task_style = if column.selected_task == Some(i) {
+                //     Style::default()
+                //         .fg(Color::White)
+                //         .bg(Color::Blue)
+                //         .add_modifier(Modifier::BOLD)
+                // } else {
+                //     Style::default()
+                // };
 
                 // Add a sparkle bullet and format the task text with wrapping - pass full width
                 let formatted_task = format_task_with_wrapping(&task.title, column_area.width);

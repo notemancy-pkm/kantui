@@ -1,6 +1,3 @@
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyModifiers};
-use std::io;
-
 // Define a structure for a task
 pub struct Task {
     pub title: String,
@@ -92,17 +89,17 @@ impl App {
         }
     }
 
-    pub fn scroll_left(&mut self) {
-        if self.scroll_offset > 0 {
-            self.scroll_offset -= 1;
-        }
-    }
+    // pub fn scroll_left(&mut self) {
+    //     if self.scroll_offset > 0 {
+    //         self.scroll_offset -= 1;
+    //     }
+    // }
 
-    pub fn scroll_right(&mut self) {
-        if self.scroll_offset < self.columns.len().saturating_sub(1) {
-            self.scroll_offset += 1;
-        }
-    }
+    // pub fn scroll_right(&mut self) {
+    //     if self.scroll_offset < self.columns.len().saturating_sub(1) {
+    //         self.scroll_offset += 1;
+    //     }
+    // }
 
     pub fn select_prev_column(&mut self) {
         if self.active_column > 0 {
@@ -194,22 +191,5 @@ impl App {
                 }
             }
         }
-    }
-}
-
-// Calculate the appropriate starting index for column scrolling
-pub fn calculate_start_index(app: &App, max_visible_columns: usize) -> usize {
-    if app.columns.len() <= max_visible_columns {
-        // If all columns fit, show all from the beginning
-        0
-    } else if app.active_column >= app.start_index + max_visible_columns {
-        // If active column is beyond current view, adjust scroll
-        app.active_column + 1 - max_visible_columns
-    } else if app.active_column < app.start_index {
-        // If active column is before current view, adjust scroll
-        app.active_column
-    } else {
-        // Otherwise, keep current scroll position
-        app.start_index
     }
 }
