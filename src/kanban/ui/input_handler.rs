@@ -48,6 +48,14 @@ pub fn run_app(
                             KeyCode::Char('l') => app.select_next_column(),
                             KeyCode::Char('j') => app.select_next_task(),
                             KeyCode::Char('k') => app.select_prev_task(),
+                            KeyCode::Char('j') if key.modifiers == KeyModifiers::CONTROL => {
+                                app.input_mode = InputMode::MoveMode;
+                            }
+                            // Add manual save functionality
+                            KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => {
+                                // Explicitly save board to file
+                                let _ = app.save_board();
+                            }
                             _ => {}
                         }
                     }

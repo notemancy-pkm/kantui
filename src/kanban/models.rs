@@ -20,7 +20,7 @@ pub enum InputMode {
     ConfirmDeleteColumn,
 }
 
-// Define the application structure
+// Define the application structure with added storage fields
 pub struct App {
     pub title: String,
     pub columns: Vec<Column>,
@@ -29,11 +29,13 @@ pub struct App {
     pub input_mode: InputMode,
     pub input_text: String,
     pub start_index: usize,
+    // New field for file storage
+    pub file_path: Option<String>,
 }
 
 impl App {
     pub fn new(title: &str) -> App {
-        App {
+        let mut app = App {
             title: title.to_string(),
             columns: vec![Column {
                 title: "To Do".to_string(),
@@ -54,7 +56,13 @@ impl App {
             scroll_offset: 0,
             input_mode: InputMode::Normal,
             input_text: String::new(),
-        }
+            file_path: None,
+        };
+
+        // Try to initialize storage (might fail if KANBAN_DIR not set)
+        let _ = app.initialize_storage();
+
+        app
     }
 
     pub fn add_column(&mut self, title: &str) {
@@ -73,20 +81,54 @@ impl App {
             selected_task: None, // No tasks selected in a new empty column
         });
 
+        // Save changes to file
+        let _ = self.save_board();
+
         // Exit input mode
         self.input_mode = InputMode::Normal;
         self.input_text.clear();
     }
 
-    pub fn jump_to_column(&mut self, index: usize) {
-        // Only allow jumping to columns that exist
-        // Limit to 0-9 (columns 1-10, with 0 mapped to the first column)
-        let target = if index == 0 { 0 } else { index - 1 };
+    pub fn add_task(&mut self, title: &str) {
+        if let Some(column) = self.columns.get_mut(self.active_column) {
+            let new_task = Task {
+                title: title.to_string(),
+                description: None,
+            };
 
-        if target < self.columns.len() {
-            self.active_column = target;
-            // Exit move mode after jumping
+            column.tasks.push(new_task);
+
+            // Select the newly added task
+            column.selected_task = Some(column.tasks.len() - 1);
+
+            // Save changes to file
+            let _ = self.save_board();
+
+            // Exit input mode
             self.input_mode = InputMode::Normal;
+            self.input_text.clear();
+        }
+    }
+
+    pub fn delete_current_task(&mut self) {
+        if let Some(column) = self.columns.get_mut(self.active_column) {
+            if let Some(task_idx) = column.selected_task {
+                if task_idx < column.tasks.len() {
+                    // Remove the task
+                    column.tasks.remove(task_idx);
+
+                    // Adjust the selection
+                    if column.tasks.is_empty() {
+                        column.selected_task = None;
+                    } else if task_idx >= column.tasks.len() {
+                        // If we removed the last task, select the new last task
+                        column.selected_task = Some(column.tasks.len() - 1);
+                    }
+
+                    // Save changes to file
+                    let _ = self.save_board();
+                }
+            }
         }
     }
 
@@ -100,6 +142,9 @@ impl App {
         if self.active_column >= self.columns.len() && !self.columns.is_empty() {
             self.active_column = self.columns.len() - 1;
         }
+
+        // Save changes to file
+        let _ = self.save_board();
     }
 
     // pub fn scroll_left(&mut self) {
@@ -167,40 +212,49 @@ impl App {
         }
     }
 
-    pub fn add_task(&mut self, title: &str) {
-        if let Some(column) = self.columns.get_mut(self.active_column) {
-            let new_task = Task {
-                title: title.to_string(),
-                description: None,
-            };
+    pub fn jump_to_column(&mut self, index: usize) {
+        // Only allow jumping to columns that exist
+        // Limit to 0-9 (columns 1-10, with 0 mapped to the first column)
+        let target = if index == 0 { 0 } else { index - 1 };
 
-            column.tasks.push(new_task);
-
-            // Select the newly added task
-            column.selected_task = Some(column.tasks.len() - 1);
-
-            // Exit input mode
+        if target < self.columns.len() {
+            self.active_column = target;
+            // Exit move mode after jumping
             self.input_mode = InputMode::Normal;
-            self.input_text.clear();
+
+            // Save changes to file
+            let _ = self.save_board();
         }
     }
 
-    pub fn delete_current_task(&mut self) {
-        if let Some(column) = self.columns.get_mut(self.active_column) {
-            if let Some(task_idx) = column.selected_task {
-                if task_idx < column.tasks.len() {
-                    // Remove the task
-                    column.tasks.remove(task_idx);
+    pub fn move_task_to_column(&mut self, target_column_idx: usize) {
+        // Validate target column index
+        if target_column_idx >= self.columns.len() || target_column_idx == self.active_column {
+            return;
+        }
 
-                    // Adjust the selection
-                    if column.tasks.is_empty() {
-                        column.selected_task = None;
-                    } else if task_idx >= column.tasks.len() {
-                        // If we removed the last task, select the new last task
-                        column.selected_task = Some(column.tasks.len() - 1);
+        // Get source column and check if a task is selected
+        if let Some(src_column) = self.columns.get_mut(self.active_column) {
+            if let Some(task_idx) = src_column.selected_task {
+                if task_idx < src_column.tasks.len() {
+                    // Remove task from source column
+                    let task = src_column.tasks.remove(task_idx);
+
+                    // Update selection in source column
+                    if src_column.tasks.is_empty() {
+                        src_column.selected_task = None;
+                    } else if task_idx >= src_column.tasks.len() {
+                        src_column.selected_task = Some(src_column.tasks.len() - 1);
                     }
-                    // If we removed a task in the middle, the index stays the same
-                    // and now points to the next task that shifted up
+
+                    // Add task to target column
+                    if let Some(target_column) = self.columns.get_mut(target_column_idx) {
+                        target_column.tasks.push(task);
+                        target_column.selected_task = Some(target_column.tasks.len() - 1);
+
+                        // Save changes
+                        let _ = self.save_board();
+                    }
                 }
             }
         }
