@@ -1,4 +1,5 @@
 mod kanban;
+mod ops;
 
 use kanban::{App, run_app};
 use ratatui::crossterm::{
