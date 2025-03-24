@@ -2,13 +2,10 @@ use crate::kanban::models::{App, InputMode};
 use crate::kanban::ui::task_formatter::format_task_with_wrapping;
 use ratatui::{
     Frame,
-    backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Position},
     style::{Color, Modifier, Style},
-    text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
-use std::io;
 
 const COLUMN_WIDTH: u16 = 50;
 const COLUMN_MARGIN: u16 = 2;

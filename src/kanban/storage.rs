@@ -1,4 +1,4 @@
-use crate::kanban::models::{App, Column, InputMode, Task};
+use crate::kanban::models::{App, Column, Task};
 use crate::ops::crud;
 use chrono::Local;
 use std::fs;
