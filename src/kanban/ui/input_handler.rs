@@ -20,7 +20,25 @@ pub fn run_app(
             match app.input_mode {
                 InputMode::BoardSelection => {
                     match key.code {
-                        KeyCode::Esc | KeyCode::Char('q') => return Ok(()),
+                        // Change this from quitting to returning to Normal mode
+                        KeyCode::Esc => {
+                            // Only return to Normal mode if we're not in the initial app startup
+                            if app.columns.len() > 0 {
+                                app.input_mode = InputMode::Normal;
+                            } else {
+                                // If no board is loaded, Esc should still quit
+                                return Ok(());
+                            }
+                        }
+                        KeyCode::Char(' ') => {
+                            app.space_pressed = true;
+                        }
+                        KeyCode::Char('b') if app.space_pressed => {
+                            app.space_pressed = false;
+                            // Return to normal mode
+                            app.input_mode = InputMode::Normal;
+                        }
+                        KeyCode::Char('q') => return Ok(()), // Explicit quit option
                         KeyCode::Up | KeyCode::Char('k') => app.select_prev_board(),
                         KeyCode::Down | KeyCode::Char('j') => app.select_next_board(),
                         KeyCode::Enter => {
@@ -29,7 +47,9 @@ pub fn run_app(
                                 eprintln!("Error loading board: {}", e);
                             }
                         }
-                        _ => {}
+                        _ => {
+                            app.space_pressed = false;
+                        }
                     }
                 }
                 InputMode::AddingBoard => {
@@ -83,6 +103,11 @@ pub fn run_app(
                                 app.space_pressed = false;
                                 app.input_mode = InputMode::AddingColumn;
                             }
+                            KeyCode::Char('j') if app.space_pressed => {
+                                app.space_pressed = false;
+                                app.input_mode = InputMode::JumpToColumnMode;
+                            }
+
                             KeyCode::Char('t') if app.space_pressed => {
                                 app.space_pressed = false;
                                 app.input_mode = InputMode::AddingTask;
@@ -93,12 +118,19 @@ pub fn run_app(
                             }
                             KeyCode::Char('b') if app.space_pressed => {
                                 app.space_pressed = false;
-                                // Return to board selection
-                                if let Err(e) = app.scan_available_boards() {
-                                    eprintln!("Error scanning boards: {}", e);
+                                // Toggle board selection
+                                if app.input_mode == InputMode::BoardSelection {
+                                    // If already in board selection, return to normal mode
+                                    app.input_mode = InputMode::Normal;
+                                } else {
+                                    // Otherwise scan boards and enter board selection mode
+                                    if let Err(e) = app.scan_available_boards() {
+                                        eprintln!("Error scanning boards: {}", e);
+                                    }
+                                    app.input_mode = InputMode::BoardSelection;
                                 }
-                                app.input_mode = InputMode::BoardSelection;
                             }
+
                             KeyCode::Char('g') => {
                                 // Only enter column selection mode if there's a task selected in the current column
                                 if let Some(column) = app.columns.get(app.active_column) {
@@ -108,9 +140,9 @@ pub fn run_app(
                                 }
                             }
                             KeyCode::Char('h') => app.select_prev_column(),
-                            KeyCode::Char('k') if key.modifiers == KeyModifiers::CONTROL => {
-                                app.input_mode = InputMode::MoveMode;
-                            }
+                            // KeyCode::Char('k') if key.modifiers == KeyModifiers::CONTROL => {
+                            //     app.input_mode = InputMode::MoveMode;
+                            // }
                             KeyCode::Char('l') => app.select_next_column(),
                             KeyCode::Char('j') => app.select_next_task(),
                             KeyCode::Char('k') => app.select_prev_task(),
@@ -196,6 +228,29 @@ pub fn run_app(
                         app.input_mode = InputMode::Normal;
                     }
                     _ => {}
+                },
+                InputMode::JumpToColumnMode => match key.code {
+                    KeyCode::Esc => app.input_mode = InputMode::Normal,
+                    KeyCode::Char(c) if c >= '1' && c <= '9' => {
+                        let index = c.to_digit(10).unwrap() as usize;
+                        // Map key 1 to index 0, key 2 to index 1, etc.
+                        let target_index = index - 1;
+
+                        // Only jump if the target index is valid
+                        if target_index < app.columns.len() {
+                            app.active_column = target_index;
+
+                            // Clear selection in all non-active columns
+                            for (i, column) in app.columns.iter_mut().enumerate() {
+                                if i != app.active_column {
+                                    column.selected_task = None;
+                                }
+                            }
+                        }
+
+                        app.input_mode = InputMode::Normal;
+                    }
+                    _ => app.input_mode = InputMode::Normal, // Any other key cancels the mode
                 },
             }
         }

@@ -13,6 +13,7 @@ pub struct Column {
 }
 
 // Define input modes
+#[derive(PartialEq)]
 pub enum InputMode {
     Normal,
     AddingColumn,
@@ -22,6 +23,7 @@ pub enum InputMode {
     BoardSelection, // New mode for board selection popup
     AddingBoard,    // New mode for creating a new board
     ColumnSelectionMode,
+    JumpToColumnMode,
 }
 
 // Define the application structure with added storage fields
