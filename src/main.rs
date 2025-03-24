@@ -25,8 +25,8 @@ fn main() -> Result<(), io::Error> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Create app and run it
-    let app = App::new("My Kanban Board");
+    // Create app - it will start in board selection mode automatically
+    let app = App::new("Kanban Board");
     let res = run_app(&mut terminal, app);
 
     // Restore terminal

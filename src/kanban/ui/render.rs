@@ -17,6 +17,19 @@ const COLUMN_MARGIN: u16 = 2;
 pub fn draw_ui(f: &mut Frame, app: &App) {
     let size = f.area();
 
+    // Check if we need to show the board selection popup
+    match app.input_mode {
+        InputMode::BoardSelection => {
+            draw_board_selection(f, app, size);
+            return;
+        }
+        InputMode::AddingBoard => {
+            draw_new_board_popup(f, app, size);
+            return;
+        }
+        _ => {}
+    }
+
     // Render the title.
     let title = Paragraph::new(app.title.clone())
         .style(Style::default().fg(Color::Cyan))
@@ -123,15 +136,15 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
     }
 
     // Render help text.
-    // Update only the help_text part of render.rs
     let help_text = match app.input_mode {
         InputMode::Normal => {
-            "Use 'h'/'l' to navigate columns | 'j'/'k' to navigate tasks | Ctrl+L to add column | Ctrl+A to add task | Ctrl+D to delete task | Ctrl+K for move mode | Ctrl+S to save | 'q' to quit"
+            "Use 'h'/'l' to navigate columns | 'j'/'k' to navigate tasks | Ctrl+L to add column | Ctrl+A to add task | Ctrl+D to delete task | Ctrl+K for move mode | Ctrl+S to save | Ctrl+B for board selection | 'q' to quit"
         }
         InputMode::AddingColumn => "Enter column name | Enter to confirm | Esc to cancel",
         InputMode::AddingTask => "Enter task name | Enter to confirm | Esc to cancel",
         InputMode::MoveMode => "Press 0-9 to jump to that column | Esc to cancel",
         InputMode::ConfirmDeleteColumn => "Press y to delete | n to cancel",
+        _ => "", // BoardSelection and AddingBoard are handled separately
     };
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::DarkGray))
@@ -146,9 +159,143 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
     draw_popup(f, app, size);
 }
 
+/// Helper function to draw the board selection popup
+fn draw_board_selection(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
+    // Clear the screen
+    f.render_widget(Clear, size);
+
+    // Create a centered popup
+    let popup_width = 60;
+    let popup_height = std::cmp::min(20, app.available_boards.len() as u16 + 6);
+
+    let popup_area = ratatui::layout::Rect::new(
+        (size.width.saturating_sub(popup_width)) / 2,
+        (size.height.saturating_sub(popup_height)) / 2,
+        popup_width.min(size.width),
+        popup_height.min(size.height),
+    );
+
+    // Create popup block
+    let popup_block = Block::default()
+        .title("Select Kanban Board")
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::Cyan));
+
+    f.render_widget(popup_block.clone(), popup_area);
+
+    // Create layout for popup content
+    let inner_area = popup_block.inner(popup_area);
+    let popup_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Title and description
+            Constraint::Min(1),    // List of boards
+            Constraint::Length(1), // Help text
+        ])
+        .split(inner_area);
+
+    // Render description
+    let description = if app.available_boards.is_empty() {
+        "No boards found. Create a new one."
+    } else {
+        "Select a board or create a new one:"
+    };
+
+    let desc_text = Paragraph::new(description)
+        .style(Style::default())
+        .alignment(Alignment::Center);
+
+    f.render_widget(desc_text, popup_chunks[0]);
+
+    // Render the list of boards
+    if !app.available_boards.is_empty() {
+        let board_items: Vec<ListItem> = app
+            .available_boards
+            .iter()
+            .enumerate()
+            .map(|(i, board_name)| {
+                let style = if app.selected_board_index == Some(i) {
+                    Style::default()
+                        .fg(Color::White)
+                        .bg(Color::Blue)
+                        .add_modifier(Modifier::BOLD)
+                } else if i == app.available_boards.len() - 1 {
+                    // Special style for "Create New Board" option
+                    Style::default().fg(Color::Green)
+                } else {
+                    Style::default()
+                };
+
+                // Special formatting for "Create New Board" option
+                let text = if i == app.available_boards.len() - 1 {
+                    format!("➕ {}", board_name)
+                } else {
+                    format!("📋 {}", board_name)
+                };
+
+                ListItem::new(text).style(style)
+            })
+            .collect();
+
+        let boards_list = List::new(board_items)
+            .block(Block::default())
+            .highlight_style(Style::default().bg(Color::Blue).fg(Color::White));
+
+        f.render_widget(boards_list, popup_chunks[1]);
+    }
+
+    // Render help text
+    let help_text = "↑↓: Navigate | Enter: Select | Esc: Quit";
+    let help = Paragraph::new(help_text)
+        .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center);
+
+    f.render_widget(help, popup_chunks[2]);
+}
+
+/// Helper function to draw the new board creation popup
+fn draw_new_board_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
+    let popup_width = 60;
+    let popup_height = 5;
+
+    let popup_area = ratatui::layout::Rect::new(
+        (size.width.saturating_sub(popup_width)) / 2,
+        (size.height.saturating_sub(popup_height)) / 2,
+        popup_width.min(size.width),
+        popup_height.min(size.height),
+    );
+
+    f.render_widget(Clear, popup_area);
+
+    let popup_block = Block::default()
+        .title("Create New Board")
+        .borders(Borders::ALL)
+        .style(Style::default());
+
+    f.render_widget(&popup_block, popup_area);
+
+    let input_area = popup_block.inner(popup_area);
+
+    let input = Paragraph::new(app.input_text.clone())
+        .style(Style::default())
+        .block(Block::default().title("Enter board name:"))
+        .wrap(Wrap { trim: true });
+
+    f.render_widget(input, input_area);
+
+    // Position cursor for typing
+    f.set_cursor_position(Position {
+        x: input_area.x + app.input_text.len() as u16,
+        y: input_area.y + 1, // +1 to account for the title
+    });
+}
+
 /// Helper function to draw popups based on the input mode.
 fn draw_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
     match app.input_mode {
+        InputMode::BoardSelection | InputMode::AddingBoard => {
+            // These are handled separately in draw_board_selection and draw_new_board_popup
+        }
         InputMode::AddingColumn => {
             let popup_width = 70;
             let popup_height = 5;
@@ -227,6 +374,8 @@ fn draw_popup(f: &mut Frame, app: &App, size: ratatui::layout::Rect) {
                 .alignment(Alignment::Center);
             f.render_widget(text, inner);
         }
-        _ => {}
+        InputMode::Normal | InputMode::MoveMode => {
+            // No popups for these modes
+        }
     }
 }

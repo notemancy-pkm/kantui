@@ -18,6 +18,50 @@ pub fn run_app(
 
         if let Event::Key(key) = event::read()? {
             match app.input_mode {
+                InputMode::BoardSelection => {
+                    match key.code {
+                        KeyCode::Esc | KeyCode::Char('q') => return Ok(()),
+                        KeyCode::Up | KeyCode::Char('k') => app.select_prev_board(),
+                        KeyCode::Down | KeyCode::Char('j') => app.select_next_board(),
+                        KeyCode::Enter => {
+                            // Handle board selection
+                            if let Err(e) = app.load_selected_board() {
+                                eprintln!("Error loading board: {}", e);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                InputMode::AddingBoard => {
+                    match key.code {
+                        KeyCode::Enter => {
+                            let board_name = if app.input_text.is_empty() {
+                                "My Kanban Board".to_string()
+                            } else {
+                                app.input_text.clone()
+                            };
+
+                            // Create the new board
+                            if let Err(e) = app.create_new_board(&board_name) {
+                                eprintln!("Error creating board: {}", e);
+                            } else {
+                                app.input_mode = InputMode::Normal;
+                            }
+
+                            app.input_text.clear();
+                        }
+                        KeyCode::Esc => {
+                            // Return to board selection
+                            app.input_mode = InputMode::BoardSelection;
+                            app.input_text.clear();
+                        }
+                        KeyCode::Char(c) => app.input_text.push(c),
+                        KeyCode::Backspace => {
+                            app.input_text.pop();
+                        }
+                        _ => {}
+                    }
+                }
                 InputMode::Normal => {
                     if key.modifiers.is_empty() && key.code == KeyCode::Char('d') {
                         if let Some(KeyCode::Char('d')) = last_key {
@@ -32,6 +76,13 @@ pub fn run_app(
                         last_key = None;
                         match key.code {
                             KeyCode::Char('q') => return Ok(()),
+                            KeyCode::Char('b') if key.modifiers == KeyModifiers::CONTROL => {
+                                // Return to board selection
+                                if let Err(e) = app.scan_available_boards() {
+                                    eprintln!("Error scanning boards: {}", e);
+                                }
+                                app.input_mode = InputMode::BoardSelection;
+                            }
                             KeyCode::Char('l') if key.modifiers == KeyModifiers::CONTROL => {
                                 app.input_mode = InputMode::AddingColumn;
                             }
@@ -48,13 +99,16 @@ pub fn run_app(
                             KeyCode::Char('l') => app.select_next_column(),
                             KeyCode::Char('j') => app.select_next_task(),
                             KeyCode::Char('k') => app.select_prev_task(),
-                            KeyCode::Char('j') if key.modifiers == KeyModifiers::CONTROL => {
-                                app.input_mode = InputMode::MoveMode;
-                            }
+                            // Don't use 'j' with CONTROL again
+                            // KeyCode::Char('j') if key.modifiers == KeyModifiers::CONTROL => {
+                            //     app.input_mode = InputMode::MoveMode;
+                            // },
                             // Add manual save functionality
                             KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => {
                                 // Explicitly save board to file
-                                let _ = app.save_board();
+                                if let Err(e) = app.save_board() {
+                                    eprintln!("Error saving board: {}", e);
+                                }
                             }
                             _ => {}
                         }

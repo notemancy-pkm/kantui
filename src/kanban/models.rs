@@ -18,6 +18,8 @@ pub enum InputMode {
     AddingTask,
     MoveMode,
     ConfirmDeleteColumn,
+    BoardSelection, // New mode for board selection popup
+    AddingBoard,    // New mode for creating a new board
 }
 
 // Define the application structure with added storage fields
@@ -29,8 +31,11 @@ pub struct App {
     pub input_mode: InputMode,
     pub input_text: String,
     pub start_index: usize,
-    // New field for file storage
+    // Storage fields
     pub file_path: Option<String>,
+    // Board selection fields
+    pub available_boards: Vec<String>,
+    pub selected_board_index: Option<usize>,
 }
 
 impl App {
@@ -54,17 +59,154 @@ impl App {
             active_column: 0,
             start_index: 0,
             scroll_offset: 0,
-            input_mode: InputMode::Normal,
+            input_mode: InputMode::BoardSelection, // Start in board selection mode
             input_text: String::new(),
             file_path: None,
+            available_boards: Vec::new(),
+            selected_board_index: Some(0), // Select first board by default
         };
 
-        // Try to initialize storage (might fail if KANBAN_DIR not set)
-        let _ = app.initialize_storage();
+        // Initialize board selection
+        app.scan_available_boards();
 
         app
     }
 
+    // Scan for available board files in KANBAN_DIR
+    pub fn scan_available_boards(&mut self) -> Result<(), std::io::Error> {
+        self.available_boards.clear();
+
+        // Check for KANBAN_DIR environment variable
+        let kanban_dir = match std::env::var("KANBAN_DIR") {
+            Ok(dir) => dir,
+            Err(_) => {
+                // If KANBAN_DIR is not set, return without scanning
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "KANBAN_DIR environment variable not set",
+                ));
+            }
+        };
+
+        // Create directory if it doesn't exist
+        let dir_path = std::path::Path::new(&kanban_dir);
+        if !dir_path.exists() {
+            std::fs::create_dir_all(dir_path)?;
+        }
+
+        // Scan directory for .txt files
+        for entry in std::fs::read_dir(dir_path)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Check if it's a file with .txt extension
+            if path.is_file() && path.extension().map_or(false, |ext| ext == "txt") {
+                // Extract board name from filename
+                if let Some(file_name) = path.file_stem() {
+                    if let Some(name) = file_name.to_str() {
+                        // Convert from snake_case to a readable format
+                        let display_name = name.replace("_", " ").to_string();
+                        self.available_boards.push(display_name);
+                    }
+                }
+            }
+        }
+
+        // Sort boards alphabetically
+        self.available_boards.sort();
+
+        // Add a "Create New Board" option at the end
+        self.available_boards.push("[Create New Board]".to_string());
+
+        // Reset selected index to 0 if there are boards
+        if !self.available_boards.is_empty() {
+            self.selected_board_index = Some(0);
+        } else {
+            self.selected_board_index = None;
+        }
+
+        Ok(())
+    }
+
+    // Create and load a new board
+    pub fn create_new_board(&mut self, title: &str) -> Result<(), std::io::Error> {
+        self.title = title.to_string();
+
+        // Reset to default columns
+        self.columns = vec![Column {
+            title: "To Do".to_string(),
+            tasks: Vec::new(),
+            selected_task: None,
+        }];
+
+        self.active_column = 0;
+
+        // Create filename from board title
+        let kanban_dir = std::env::var("KANBAN_DIR").map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "KANBAN_DIR environment variable not set",
+            )
+        })?;
+
+        let dir_path = std::path::Path::new(&kanban_dir);
+        let file_name = format!("{}.txt", title.replace(" ", "_").to_lowercase());
+        let file_path = dir_path.join(file_name);
+
+        // Store the full file path
+        self.file_path = Some(file_path.to_string_lossy().to_string());
+
+        // Save the new board
+        self.save_board()?;
+
+        Ok(())
+    }
+
+    // Load selected board
+    pub fn load_selected_board(&mut self) -> Result<(), std::io::Error> {
+        if let Some(index) = self.selected_board_index {
+            // Check if it's the "Create New Board" option
+            if index == self.available_boards.len() - 1 {
+                // Switch to board creation mode
+                self.input_mode = InputMode::AddingBoard;
+                self.input_text.clear();
+                return Ok(());
+            }
+
+            // Get selected board name
+            if let Some(board_name) = self.available_boards.get(index) {
+                // Convert display name back to filename
+                let file_name = format!("{}.txt", board_name.replace(" ", "_").to_lowercase());
+
+                // Get KANBAN_DIR
+                let kanban_dir = std::env::var("KANBAN_DIR").map_err(|_| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "KANBAN_DIR environment variable not set",
+                    )
+                })?;
+
+                let dir_path = std::path::Path::new(&kanban_dir);
+                let file_path = dir_path.join(file_name);
+
+                // Store the full file path
+                self.file_path = Some(file_path.to_string_lossy().to_string());
+
+                // Update the title
+                self.title = board_name.clone();
+
+                // Load the board
+                self.load_board()?;
+
+                // Switch to normal mode
+                self.input_mode = InputMode::Normal;
+            }
+        }
+
+        Ok(())
+    }
+
+    // Rest of the App implementation...
     pub fn add_column(&mut self, title: &str) {
         // Ensure the column name is unique
         let mut unique_name = title.to_string();
@@ -147,18 +289,6 @@ impl App {
         let _ = self.save_board();
     }
 
-    // pub fn scroll_left(&mut self) {
-    //     if self.scroll_offset > 0 {
-    //         self.scroll_offset -= 1;
-    //     }
-    // }
-
-    // pub fn scroll_right(&mut self) {
-    //     if self.scroll_offset < self.columns.len().saturating_sub(1) {
-    //         self.scroll_offset += 1;
-    //     }
-    // }
-
     pub fn select_prev_column(&mut self) {
         if self.active_column > 0 {
             self.active_column -= 1;
@@ -168,6 +298,23 @@ impl App {
     pub fn select_next_column(&mut self) {
         if self.active_column < self.columns.len().saturating_sub(1) {
             self.active_column += 1;
+        }
+    }
+
+    // Board selection navigation
+    pub fn select_prev_board(&mut self) {
+        if let Some(index) = self.selected_board_index {
+            if index > 0 {
+                self.selected_board_index = Some(index - 1);
+            }
+        }
+    }
+
+    pub fn select_next_board(&mut self) {
+        if let Some(index) = self.selected_board_index {
+            if index < self.available_boards.len() - 1 {
+                self.selected_board_index = Some(index + 1);
+            }
         }
     }
 

@@ -99,6 +99,9 @@ impl App {
 
     /// Update frontend App from backend Board
     fn update_from_backend_board(&mut self, board: crud::Board) {
+        // Update board title
+        self.title = board.name.clone();
+
         // Store original active column name to restore selection
         let active_column_name = self
             .columns
