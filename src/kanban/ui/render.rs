@@ -145,7 +145,7 @@ pub fn draw_ui(f: &mut Frame, app: &App) {
     // Render help text.
     let help_text = match app.input_mode {
         InputMode::Normal => {
-            "Use 'h'/'l' to navigate columns | 'j'/'k' to navigate tasks | Ctrl+L to add column | Ctrl+A to add task | Ctrl+D to delete task | Ctrl+K for move mode | Ctrl+S to save | Ctrl+B for board selection | 'q' to quit"
+            "Use 'h'/'l' to navigate columns | 'j'/'k' to navigate tasks | 'g' to move task | Space+c to add column | Space+t to add task | Space+d to delete task | Space+b for board selection | Ctrl+S to save | 'q' to quit"
         }
         InputMode::AddingColumn => "Enter column name | Enter to confirm | Esc to cancel",
         InputMode::AddingTask => "Enter task name | Enter to confirm | Esc to cancel",

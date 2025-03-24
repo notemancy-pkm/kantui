@@ -76,29 +76,29 @@ pub fn run_app(
                         last_key = None;
                         match key.code {
                             KeyCode::Char('q') => return Ok(()),
-                            KeyCode::Char('b') if key.modifiers == KeyModifiers::CONTROL => {
+                            KeyCode::Char(' ') => {
+                                app.space_pressed = true;
+                            }
+                            KeyCode::Char('c') if app.space_pressed => {
+                                app.space_pressed = false;
+                                app.input_mode = InputMode::AddingColumn;
+                            }
+                            KeyCode::Char('t') if app.space_pressed => {
+                                app.space_pressed = false;
+                                app.input_mode = InputMode::AddingTask;
+                            }
+                            KeyCode::Char('d') if app.space_pressed => {
+                                app.space_pressed = false;
+                                app.delete_current_task();
+                            }
+                            KeyCode::Char('b') if app.space_pressed => {
+                                app.space_pressed = false;
                                 // Return to board selection
                                 if let Err(e) = app.scan_available_boards() {
                                     eprintln!("Error scanning boards: {}", e);
                                 }
                                 app.input_mode = InputMode::BoardSelection;
                             }
-                            KeyCode::Char('l') if key.modifiers == KeyModifiers::CONTROL => {
-                                app.input_mode = InputMode::AddingColumn;
-                            }
-                            KeyCode::Char('h') => app.select_prev_column(),
-                            KeyCode::Char('k') if key.modifiers == KeyModifiers::CONTROL => {
-                                app.input_mode = InputMode::MoveMode;
-                            }
-                            KeyCode::Char('a') if key.modifiers == KeyModifiers::CONTROL => {
-                                app.input_mode = InputMode::AddingTask;
-                            }
-                            KeyCode::Char('d') if key.modifiers == KeyModifiers::CONTROL => {
-                                app.delete_current_task();
-                            }
-                            KeyCode::Char('l') => app.select_next_column(),
-                            KeyCode::Char('j') => app.select_next_task(),
-                            KeyCode::Char('k') => app.select_prev_task(),
                             KeyCode::Char('g') => {
                                 // Only enter column selection mode if there's a task selected in the current column
                                 if let Some(column) = app.columns.get(app.active_column) {
@@ -107,18 +107,23 @@ pub fn run_app(
                                     }
                                 }
                             }
-                            // Don't use 'j' with CONTROL again
-                            // KeyCode::Char('j') if key.modifiers == KeyModifiers::CONTROL => {
-                            //     app.input_mode = InputMode::MoveMode;
-                            // },
-                            // Add manual save functionality
+                            KeyCode::Char('h') => app.select_prev_column(),
+                            KeyCode::Char('k') if key.modifiers == KeyModifiers::CONTROL => {
+                                app.input_mode = InputMode::MoveMode;
+                            }
+                            KeyCode::Char('l') => app.select_next_column(),
+                            KeyCode::Char('j') => app.select_next_task(),
+                            KeyCode::Char('k') => app.select_prev_task(),
+                            // Keep save functionality with Ctrl+S
                             KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => {
                                 // Explicitly save board to file
                                 if let Err(e) = app.save_board() {
                                     eprintln!("Error saving board: {}", e);
                                 }
                             }
-                            _ => {}
+                            _ => {
+                                app.space_pressed = false;
+                            }
                         }
                     }
                 }
